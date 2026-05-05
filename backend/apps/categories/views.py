@@ -1,6 +1,7 @@
 from django.db import models
 from rest_framework import status
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework.generics import (
     ListAPIView,
     CreateAPIView,
@@ -11,6 +12,8 @@ from rest_framework.generics import (
 from .models import Category, CategoryRule
 from .serializers import CategorySerializer, CategoryRuleSerializer
 from apps.transactions.models import Transaction
+from .ai_categorization import batch_categorize
+
 
 SYSTEM_CATEGORIES = [
     {'name': 'Alimentari', 'color': '#10B981', 'icon': 'shopping-cart'},
@@ -82,3 +85,60 @@ class CategoryRuleCreateView(CreateAPIView):
 class CategoryRuleDeleteView(DestroyAPIView):
     def get_queryset(self):
         return CategoryRule.objects.filter(user=self.request.user)
+
+
+class AICategorizeView(APIView):
+    """
+    POST /api/categories/ai-categorize/
+    Categorizes all uncategorized transactions for the user using AI Gateway.
+    Query params: ?limit=100 (default)
+    Returns count of categorized transactions and category assignments.
+    """
+    def post(self, request, *args, **kwargs):
+        limit = int(request.query_params.get('limit', 100))
+
+        uncategorized = list(
+            Transaction.objects.filter(
+                user=request.user,
+                category__isnull=True,
+            ).order_by('-completed_at')[:limit]
+        )
+
+        if not uncategorized:
+            return Response({
+                'categorized_count': 0,
+                'message': 'Nessuna transazione da categorizzare.',
+            })
+
+        # Extract unique descriptions
+        unique_descs = list({tx.description for tx in uncategorized})
+
+        # AI Batch categorize
+        mapping = batch_categorize(request.user, unique_descs)
+
+        # Build category name -> Category object lookup
+        cat_name_to_obj = {}
+        for cat in Category.objects.filter(
+            models.Q(user=request.user) | models.Q(is_system=True)
+        ):
+            cat_name_to_obj[cat.name] = cat
+
+        categorized_count = 0
+        assignments = []
+        for tx in uncategorized:
+            cat_name = mapping.get(tx.description)
+            if cat_name and cat_name in cat_name_to_obj:
+                tx.category = cat_name_to_obj[cat_name]
+                tx.save(update_fields=['category'])
+                categorized_count += 1
+                assignments.append({
+                    'transaction_id': tx.id,
+                    'description': tx.description,
+                    'category': cat_name,
+                })
+
+        return Response({
+            'categorized_count': categorized_count,
+            'total_uncategorized': len(uncategorized),
+            'assignments': assignments,
+        })
