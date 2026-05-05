@@ -2,33 +2,189 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.db.models import Sum, Count, Q, Avg, StdDev
 from django.db.models.functions import TruncMonth, TruncDay
+from django.utils import timezone
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
+from calendar import month_name
 
 from apps.transactions.models import Transaction
+from .ai_service import generate_suggestions as generate_ai_suggestions
 
 
 class SuggestionsView(APIView):
     def get(self, request):
-        suggestions = []
+        suggestions = generate_ai_suggestions(
+            request.user,
+            _build_ai_context(request.user),
+        )
 
-        biggest_increase = _detect_biggest_increase(request.user)
-        if biggest_increase:
-            suggestions.append(biggest_increase)
-
-        subscriptions = _detect_subscriptions(request.user)
-        for sub in subscriptions:
-            suggestions.append(sub)
-
-        spending_peaks = _detect_spending_peaks(request.user)
-        if spending_peaks:
-            suggestions.append(spending_peaks)
-
-        outliers = _detect_outliers(request.user)
-        for outlier in outliers:
-            suggestions.append(outlier)
+        if suggestions is None:
+            suggestions = _generate_legacy_suggestions(request.user)
 
         return Response(suggestions)
+
+
+def _build_ai_context(user):
+    """Costruisce contesto anonimizzato e aggregato per l'AI gateway."""
+    now = timezone.now()
+    six_months_ago = now - relativedelta(months=6)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    prev_month_start = month_start - relativedelta(months=1)
+
+    # Trend mensili ultimi 6 mesi
+    monthly = list(
+        Transaction.objects.filter(
+            user=user,
+            amount__lt=0,
+            completed_at__gte=six_months_ago,
+        ).annotate(
+            month=TruncMonth('completed_at')
+        ).values('month').annotate(
+            total=Sum('amount'),
+            count=Count('id'),
+        ).order_by('month')
+    )
+
+    monthly_trends = []
+    for m in monthly:
+        monthly_trends.append({
+            'month_label': month_name[m['month'].month] if m['month'] else 'Unknown',
+            'total': round(abs(float(m['total'])), 2),
+            'count': m['count'],
+        })
+
+    # Top categorie per spesa (ultimi 6 mesi)
+    categories = list(
+        Transaction.objects.filter(
+            user=user,
+            amount__lt=0,
+            completed_at__gte=six_months_ago,
+        ).values('category__name', 'category__color').annotate(
+            total=Sum('amount'),
+            count=Count('id'),
+        ).order_by('total')[:10]
+    )
+    top_categories = []
+    for c in categories:
+        top_categories.append({
+            'name': c['category__name'] or 'Senza categoria',
+            'total': round(abs(float(c['total'])), 2),
+            'count': c['count'],
+        })
+
+    # Confronto mese corrente vs precedente
+    current_totals = {}
+    for c in Transaction.objects.filter(
+        user=user, amount__lt=0,
+        completed_at__gte=month_start,
+    ).values('category__name').annotate(total=Sum('amount')):
+        current_totals[c['category__name'] or 'Senza categoria'] = abs(float(c['total']))
+
+    prev_totals = {}
+    for c in Transaction.objects.filter(
+        user=user, amount__lt=0,
+        completed_at__gte=prev_month_start,
+        completed_at__lt=month_start,
+    ).values('category__name').annotate(total=Sum('amount')):
+        prev_totals[c['category__name'] or 'Senza categoria'] = abs(float(c['total']))
+
+    changes = []
+    for name, cur in current_totals.items():
+        prev = prev_totals.get(name, 0)
+        if prev > 0:
+            pct = round(((cur - prev) / prev) * 100, 1)
+        else:
+            pct = 100.0 if cur > 0 else 0.0
+        changes.append({
+            'category': name,
+            'current': round(cur, 2),
+            'previous': round(prev, 2),
+            'change_pct': pct,
+        })
+    changes.sort(key=lambda x: abs(x['change_pct']), reverse=True)
+
+    # Abbonamenti rilevati
+    sub_groups = list(
+        Transaction.objects.filter(
+            user=user,
+            amount__lt=0,
+            completed_at__gte=now - relativedelta(months=3),
+        ).values('description').annotate(
+            count=Count('id'), avg_amount=Avg('amount')
+        ).filter(count__gte=3).order_by('-count')[:5]
+    )
+    subscriptions = []
+    for s in sub_groups:
+        subscriptions.append({
+            'merchant': s['description'],
+            'occurrences': s['count'],
+            'estimated_monthly': round(abs(float(s['avg_amount'])), 2),
+        })
+
+    # Outlier (spese anomali)
+    stats = {}
+    for item in Transaction.objects.filter(
+        user=user, amount__lt=0,
+        completed_at__gte=now - relativedelta(months=6),
+    ).values('category__name').annotate(avg=Avg('amount'), std=StdDev('amount')):
+        if item['std'] and item['std'] > 0:
+            stats[item['category__name'] or 'Senza categoria'] = {
+                'avg': abs(float(item['avg'])),
+                'std': float(item['std']),
+            }
+
+    recent_outliers = []
+    months1_ago = now - relativedelta(months=1)
+    for tx in Transaction.objects.filter(
+        user=user, amount__lt=0,
+        completed_at__gte=months1_ago,
+    ).select_related('category').order_by('-completed_at')[:20]:
+        name = tx.category.name if tx.category else 'Senza categoria'
+        if name in stats:
+            s = stats[name]
+            amt = abs(float(tx.amount))
+            if amt > s['avg'] + 2 * s['std'] and amt > s['avg'] * 2:
+                recent_outliers.append({
+                    'category': name,
+                    'amount': round(amt, 2),
+                    'average': round(s['avg'], 2),
+                })
+
+    return {
+        'total_spent_6m': round(sum(m['total'] for m in monthly_trends), 2),
+        'transactions_count_6m': sum(m['count'] for m in monthly_trends),
+        'monthly_trends': monthly_trends,
+        'top_categories': top_categories,
+        'monthly_changes': changes[:5],
+        'subscriptions': subscriptions,
+        'outliers': recent_outliers[:3],
+    }
+
+
+def _generate_legacy_suggestions(user):
+    """Fallback con logica statistica originale."""
+    suggestions = []
+
+    biggest_increase = _detect_biggest_increase(user)
+    if biggest_increase:
+        suggestions.append(biggest_increase)
+
+    subscriptions = _detect_subscriptions(user)
+    for sub in subscriptions:
+        suggestions.append(sub)
+
+    spending_peaks = _detect_spending_peaks(user)
+    if spending_peaks:
+        suggestions.append(spending_peaks)
+
+    outliers = _detect_outliers(user)
+    for outlier in outliers:
+        suggestions.append(outlier)
+
+    return suggestions
+
+
+# ===== Legacy detection functions (unchanged) =====
 
 
 def _detect_biggest_increase(user):
