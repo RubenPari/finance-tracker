@@ -28,6 +28,9 @@ services:
     env_file: .env
     environment:
       - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,backend
+      - AI_GATEWAY_URL=https://gateway.ai.vercel.com/v1/chat/completions
+      - AI_GATEWAY_KEY=${AI_GATEWAY_KEY}
+      - AI_GATEWAY_MODEL=gpt-5
 
   celery:
     build: ./backend
