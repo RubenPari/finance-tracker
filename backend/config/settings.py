@@ -133,4 +133,10 @@ AI_GATEWAY_KEY = os.environ.get('AI_GATEWAY_KEY', '')
 AI_GATEWAY_MODEL = os.environ.get('AI_GATEWAY_MODEL', 'gpt-5')
 AI_SUGGESTIONS_TIMEOUT = int(os.environ.get('AI_SUGGESTIONS_TIMEOUT', '10'))
 
+# Vercel AI Gateway (Categorization)
+AI_CATEGORIZATION_ENABLED = os.environ.get('AI_CATEGORIZATION_ENABLED', 'true').lower() == 'true'
+AI_CATEGORIZATION_BATCH_SIZE = int(os.environ.get('AI_CATEGORIZATION_BATCH_SIZE', '20'))
+AI_CATEGORIZATION_TIMEOUT = int(os.environ.get('AI_CATEGORIZATION_TIMEOUT', '15'))
+AI_CATEGORIZATION_CACHE_TTL = int(os.environ.get('AI_CATEGORIZATION_CACHE_TTL', '2592000'))  # 30 days
+
 AUTH_USER_MODEL = 'authentication.User'
