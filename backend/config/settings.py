@@ -125,4 +125,12 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Europe/Rome'
 
+# Vercel AI Gateway (Suggestions AI)
+AI_GATEWAY_URL = os.environ.get(
+    'AI_GATEWAY_URL', 'https://gateway.ai.vercel.com/v1/chat/completions'
+)
+AI_GATEWAY_KEY = os.environ.get('AI_GATEWAY_KEY', '')
+AI_GATEWAY_MODEL = os.environ.get('AI_GATEWAY_MODEL', 'gpt-5')
+AI_SUGGESTIONS_TIMEOUT = int(os.environ.get('AI_SUGGESTIONS_TIMEOUT', '10'))
+
 AUTH_USER_MODEL = 'authentication.User'
