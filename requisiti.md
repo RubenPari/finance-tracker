@@ -184,6 +184,11 @@ Periodo: **01/01/2026 – 05/05/2026** — 541 transazioni totali, di cui:
   - Spese anomale (outlier statistici per categoria)
 - **RF-36** — I suggerimenti vengono ricalcolati ad ogni nuovo import
 
+- **RF-40 (nuovo)** — **Analisi AI del profilo di spesa**: il sistema invia un riepilogo strutturato aggregato delle transazioni utente (ultimi 6 mesi, per categoria e trend mensili) a **Vercel AI Gateway** con modello `gpt-5`, ricevendo insight narrativi personalizzati.
+- **RF-41 (nuovo)** — **Fallback statistico automatico**: se l'AI Gateway non risponde (timeout, errore HTTP, rate limit), il sistema deve automaticamente degradare ai suggerimenti statistici legacy (`_detect_*`) senza fallire la richiesta.
+- **RF-42 (nuovo)** — **Caching intelligente suggerimenti AI**: i suggerimenti generati dall'AI vengono cache-ati per 24 ore per utente (chiave Redis `suggestions:<user_id>`). La cache viene invalidata automaticamente dopo un nuovo import di transazioni.
+- **RF-43 (nuovo)** — **Privacy e token limit**: i dati inviati a GPT-5 non devono includere informazioni personali identificabili (PII) delle singole transazioni (merchant, ID transazione), ma solo aggregati per categoria e trend mensili.
+
 ---
 
 ## 5. Requisiti Non Funzionali
