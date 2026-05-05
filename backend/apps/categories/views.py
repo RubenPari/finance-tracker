@@ -31,6 +31,7 @@ SYSTEM_CATEGORIES = [
 
 class CategoryListView(ListAPIView):
     serializer_class = CategorySerializer
+    pagination_class = None
 
     def get_queryset(self):
         return Category.objects.filter(
