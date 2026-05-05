@@ -34,4 +34,8 @@ class ImportBatchSerializer(serializers.ModelSerializer):
             'imported_count', 'skipped_count', 'error_count',
             'task_id', 'status',
         )
-        read_only_fields = '__all__'
+        read_only_fields = (
+            'id', 'filename', 'imported_at', 'total_rows',
+            'imported_count', 'skipped_count', 'error_count',
+            'task_id', 'status',
+        )
