@@ -5,7 +5,8 @@ from decimal import Decimal
 from django.db import transaction as db_transaction
 
 from .models import Transaction, ImportBatch
-from apps.categories.models import CategoryRule, Category
+from apps.categories.models import Category, CategoryRule
+from apps.categories.ai_categorization import batch_categorize
 
 
 ALLOWED_EXTENSION = '.xlsx'
@@ -28,7 +29,26 @@ def parse_revolut_xlsx(file_content: bytes) -> pd.DataFrame:
     return df
 
 
-def auto_categorize(user, description):
+def auto_categorize(user, description, description_to_category=None):
+    """
+    Categorize a single transaction description.
+    
+    If description_to_category mapping is provided, uses it directly.
+    Otherwise falls back to keyword matching via CategoryRule.
+    """
+    if description_to_category is not None:
+        cat_name = description_to_category.get(description)
+        if cat_name:
+            try:
+                return Category.objects.get(
+                    name=cat_name,
+                    user__in=[user, None]  # user=None means system category
+                )
+            except Category.DoesNotExist:
+                pass
+        return None
+
+    # Legacy keyword fallback
     rules = CategoryRule.objects.filter(user=user).select_related('category').order_by('-priority')
     for rule in rules:
         if rule.keyword.lower() in description.lower():
@@ -45,6 +65,10 @@ def process_import_sync(batch_id: int, user_id: int, file_content: bytes, filena
         imported = 0
         skipped = 0
         errors = 0
+
+        # AI Batch categorization: extract unique descriptions first
+        all_descriptions = df['Descrizione'].dropna().astype(str).unique().tolist()
+        description_to_category = batch_categorize(import_batch.user, all_descriptions)
 
         with db_transaction.atomic():
             for _, row in df.iterrows():
@@ -71,7 +95,11 @@ def process_import_sync(batch_id: int, user_id: int, file_content: bytes, filena
                         skipped += 1
                         continue
 
-                    category = auto_categorize(import_batch.user, description)
+                    category = auto_categorize(
+                        import_batch.user,
+                        description,
+                        description_to_category=description_to_category,
+                    )
 
                     Transaction.objects.create(
                         user_id=user_id,
