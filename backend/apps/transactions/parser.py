@@ -1,3 +1,4 @@
+import logging
 import pandas as pd
 import numpy as np
 from io import BytesIO
@@ -8,6 +9,7 @@ from .models import Transaction, ImportBatch
 from apps.categories.models import Category, CategoryRule
 from apps.categories.ai_categorization import batch_categorize
 
+logger = logging.getLogger(__name__)
 
 ALLOWED_EXTENSION = '.xlsx'
 EXPECTED_HEADER = 'Tipo,Prodotto,Data di inizio,Data di completamento,Descrizione,Importo,Costo,Valuta,State,Saldo'
@@ -32,7 +34,7 @@ def parse_revolut_xlsx(file_content: bytes) -> pd.DataFrame:
 def auto_categorize(user, description, description_to_category=None):
     """
     Categorize a single transaction description.
-    
+
     If description_to_category mapping is provided, uses it directly.
     Otherwise falls back to keyword matching via CategoryRule.
     """
@@ -42,13 +44,12 @@ def auto_categorize(user, description, description_to_category=None):
             try:
                 return Category.objects.get(
                     name=cat_name,
-                    user__in=[user, None]  # user=None means system category
+                    user__in=[user, None]
                 )
             except Category.DoesNotExist:
                 pass
         return None
 
-    # Legacy keyword fallback
     rules = CategoryRule.objects.filter(user=user).select_related('category').order_by('-priority')
     for rule in rules:
         if rule.keyword.lower() in description.lower():
@@ -66,7 +67,6 @@ def process_import_sync(batch_id: int, user_id: int, file_content: bytes, filena
         skipped = 0
         errors = 0
 
-        # AI Batch categorization: extract unique descriptions first
         all_descriptions = df['Descrizione'].dropna().astype(str).unique().tolist()
         description_to_category = batch_categorize(import_batch.user, all_descriptions)
 
@@ -116,7 +116,8 @@ def process_import_sync(batch_id: int, user_id: int, file_content: bytes, filena
                         import_batch=import_batch,
                     )
                     imported += 1
-                except Exception:
+                except Exception as e:
+                    logger.warning('Failed to process row during import: %s', e)
                     errors += 1
 
         import_batch.total_rows = total_rows
