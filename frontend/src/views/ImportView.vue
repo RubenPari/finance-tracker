@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { transactionsApi } from '@/api'
-import type { ImportBatch } from '@/types'
-import { formatDateTime } from '@/utils/formatters'
+import type { ImportBatch, Transaction } from '@/types'
+import { formatDateTime, formatDate, formatCurrency } from '@/utils/formatters'
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const dragging = ref(false)
@@ -10,6 +10,13 @@ const uploading = ref(false)
 const result = ref<ImportBatch | null>(null)
 const error = ref('')
 const history = ref<ImportBatch[]>([])
+const expandedBatch = ref<number | null>(null)
+const batchTransactions = ref<Transaction[]>([])
+const batchTransactionLoading = ref(false)
+const batchTransactionPage = ref(1)
+const batchTransactionTotal = ref(0)
+const batchTransactionHasNext = ref(false)
+const batchTransactionHasPrev = ref(false)
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
@@ -90,13 +97,51 @@ async function loadHistory() {
   } catch {}
 }
 
+async function toggleBatch(batch: ImportBatch) {
+  if (expandedBatch.value === batch.id) {
+    expandedBatch.value = null
+    batchTransactions.value = []
+    return
+  }
+
+  expandedBatch.value = batch.id
+  batchTransactionPage.value = 1
+  await loadBatchTransactions(batch.id, 1)
+}
+
+async function loadBatchTransactions(batchId: number, page: number) {
+  batchTransactionLoading.value = true
+  try {
+    const { data } = await transactionsApi.batchTransactions(batchId, { page })
+    batchTransactions.value = data.results
+    batchTransactionTotal.value = data.count
+    batchTransactionHasNext.value = !!data.next
+    batchTransactionHasPrev.value = !!data.previous
+    batchTransactionPage.value = page
+  } catch {
+    batchTransactions.value = []
+  } finally {
+    batchTransactionLoading.value = false
+  }
+}
+
+function getStatusBadge(status: string) {
+  const map: Record<string, { class: string; label: string }> = {
+    PENDING: { class: 'bg-gray-100 text-gray-600', label: 'In attesa' },
+    PROCESSING: { class: 'bg-blue-100 text-blue-600', label: 'In elaborazione' },
+    COMPLETED: { class: 'bg-green-100 text-green-600', label: 'Completato' },
+    FAILED: { class: 'bg-red-100 text-red-600', label: 'Fallito' },
+  }
+  return map[status] || map.PENDING
+}
+
 onMounted(loadHistory)
 onUnmounted(stopPolling)
 </script>
 
 <template>
   <div>
-    <h1 class="mb-6 text-2xl font-bold text-gray-900">Importa CSV</h1>
+    <h1 class="mb-6 text-2xl font-bold text-gray-900">Importa XLSX</h1>
 
     <form v-if="!uploading && !result" class="card">
       <div
@@ -169,24 +214,121 @@ onUnmounted(stopPolling)
 
     <div v-if="history.length" class="mt-8">
       <h2 class="mb-4 text-lg font-semibold text-gray-900">Storico import</h2>
-      <div class="card">
-        <div class="space-y-3">
-          <div
-            v-for="batch in history"
-            :key="batch.id"
-            class="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-3"
+      <div class="space-y-3">
+        <div
+          v-for="batch in history"
+          :key="batch.id"
+          class="card overflow-hidden"
+        >
+          <button
+            class="flex w-full items-center justify-between px-4 py-3 transition-colors hover:bg-gray-50"
+            @click="toggleBatch(batch)"
           >
-            <div>
-              <p class="text-sm font-medium text-gray-900">{{ batch.filename }}</p>
-              <p class="text-xs text-gray-400">{{ formatDateTime(batch.imported_at) }}</p>
+            <div class="flex items-center gap-3">
+              <span class="text-lg">
+                {{ expandedBatch === batch.id ? '▾' : '▸' }}
+              </span>
+              <div>
+                <p class="text-sm font-medium text-gray-900">{{ batch.filename }}</p>
+                <p class="text-xs text-gray-400">{{ formatDateTime(batch.imported_at) }}</p>
+              </div>
             </div>
-            <div class="flex gap-4 text-xs">
-              <span class="text-green-600">{{ batch.imported_count }} importate</span>
-              <span class="text-yellow-600">{{ batch.skipped_count }} duplicate</span>
-              <span v-if="batch.error_count" class="text-red-600"
-                >{{ batch.error_count }} errori</span
+            <div class="flex items-center gap-4">
+              <span
+                class="rounded-full px-2 py-1 text-xs font-medium"
+                :class="getStatusBadge(batch.status).class"
               >
+                {{ getStatusBadge(batch.status).label }}
+              </span>
+              <div class="flex gap-3 text-xs">
+                <span class="text-green-600">{{ batch.imported_count }} importate</span>
+                <span class="text-yellow-600">{{ batch.skipped_count }} duplicate</span>
+                <span v-if="batch.error_count" class="text-red-600"
+                  >{{ batch.error_count }} errori</span
+                >
+              </div>
             </div>
+          </button>
+
+          <div v-if="expandedBatch === batch.id" class="border-t border-gray-100">
+            <div v-if="batchTransactionLoading" class="flex justify-center p-8">
+              <div
+                class="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"
+              />
+            </div>
+
+            <div v-else-if="batchTransactions.length === 0" class="p-6 text-center text-sm text-gray-400">
+              Nessuna transazione trovata per questo batch.
+            </div>
+
+            <template v-else>
+              <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                  <thead class="border-b border-gray-100 bg-gray-50 text-xs uppercase text-gray-500">
+                    <tr>
+                      <th class="px-4 py-3">Data</th>
+                      <th class="px-4 py-3">Descrizione</th>
+                      <th class="px-4 py-3">Categoria</th>
+                      <th class="px-4 py-3">Tipo</th>
+                      <th class="px-4 py-3 text-right">Importo</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-gray-50">
+                    <tr v-for="tx in batchTransactions" :key="tx.id" class="hover:bg-gray-50">
+                      <td class="whitespace-nowrap px-4 py-3 text-gray-500">
+                        {{ formatDate(tx.completed_at) }}
+                      </td>
+                      <td class="px-4 py-3 font-medium text-gray-900">
+                        {{ tx.description }}
+                      </td>
+                      <td class="px-4 py-3">
+                        <span
+                          v-if="tx.category_name"
+                          class="rounded-full px-2 py-0.5 text-xs font-medium"
+                          :style="{
+                            backgroundColor: tx.category_color + '20',
+                            color: tx.category_color,
+                          }"
+                        >
+                          {{ tx.category_name }}
+                        </span>
+                        <span v-else class="text-gray-400">—</span>
+                      </td>
+                      <td class="whitespace-nowrap px-4 py-3 text-gray-500">
+                        {{ tx.transaction_type }}
+                      </td>
+                      <td class="whitespace-nowrap px-4 py-3 text-right font-semibold"
+                        :class="tx.amount < 0 ? 'text-red-600' : 'text-green-600'"
+                      >
+                        {{ formatCurrency(tx.amount) }}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div v-if="batchTransactionHasPrev || batchTransactionHasNext" class="flex items-center justify-between border-t border-gray-100 px-4 py-3">
+                <p class="text-xs text-gray-500">
+                  {{ batchTransactionTotal }} transazioni
+                </p>
+                <div class="flex gap-2">
+                  <button
+                    v-if="batchTransactionHasPrev"
+                    class="btn-secondary text-xs"
+                    @click="loadBatchTransactions(batch.id, batchTransactionPage - 1)"
+                  >
+                    Precedente
+                  </button>
+                  <button
+                    v-if="batchTransactionHasNext"
+                    class="btn-secondary text-xs"
+                    @click="loadBatchTransactions(batch.id, batchTransactionPage + 1)"
+                  >
+                    Successiva
+                  </button>
+                </div>
+              </div>
+            </template>
           </div>
         </div>
       </div>
