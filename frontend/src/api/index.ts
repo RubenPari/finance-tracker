@@ -86,6 +86,8 @@ export const transactionsApi = {
   },
   importHistory: () => api.get<ImportBatch[]>('/transactions/import/history/'),
   importDetail: (id: number) => api.get<ImportBatch>(`/transactions/import/${id}/`),
+  batchTransactions: (batchId: number, filters?: TransactionFilters) =>
+    api.get<PaginatedResponse<Transaction>>(`/transactions/import/${batchId}/transactions/`, { params: filters }),
 }
 
 export const categoriesApi = {
