@@ -23,6 +23,11 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
+const refreshClient = axios.create({
+  baseURL: '/api',
+  headers: { 'Content-Type': 'application/json' },
+})
+
 api.interceptors.request.use((config) => {
   const store = useAuthStore()
   if (store.accessToken) {
@@ -40,7 +45,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !original._retry && store.refreshToken) {
       original._retry = true
       try {
-        const { data } = await axios.post('/api/auth/refresh/', {
+        const { data } = await refreshClient.post('/auth/refresh/', {
           refresh: store.refreshToken,
         })
         store.setTokens(data.access, data.refresh)
