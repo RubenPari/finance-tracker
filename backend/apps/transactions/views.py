@@ -12,8 +12,9 @@ from rest_framework.generics import (
     DestroyAPIView,
 )
 from django.shortcuts import get_object_or_404
+from django.db import transaction as db_transaction
 
-from .models import Transaction, ImportBatch
+from .models import Transaction, ImportBatch, ImportStaging
 from .serializers import (
     TransactionSerializer,
     TransactionUpdateSerializer,
@@ -22,7 +23,6 @@ from .serializers import (
 )
 from .filters import TransactionFilter
 from .tasks import process_import_xlsx
-
 
 class TransactionPagination(PageNumberPagination):
     page_size = 50
@@ -127,7 +127,80 @@ class ImportBatchTransactionsView(ListAPIView):
 
     def get_queryset(self):
         batch_id = self.kwargs["pk"]
+        # We now support both committed transactions and staged ones
+        # This is a simplified view; in a real app we might have a separate StagingTransactionSerializer
+        # For now, let's keep it looking at Transactions.
+        # To actually see staged data, the user would need a new endpoint.
         return Transaction.objects.filter(
             user=self.request.user,
             import_batch_id=batch_id,
         ).select_related("category")
+
+
+class ImportCommitView(APIView):
+    def post(self, request, batch_id):
+        import_batch = get_object_or_404(ImportBatch, id=batch_id, user=request.user)
+
+        if import_batch.status != 'STAGED':
+            return Response(
+                {"error": "Il batch non è in stato STAGED. Non può essere confermato."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        staged_items = ImportStaging.objects.filter(import_batch=import_batch)
+        if not staged_items.exists():
+            return Response(
+                {"error": "Nessun dato trovato in staging per questo batch."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            with db_transaction.atomic():
+                committed_count = 0
+                for item in staged_items:
+                    # Final duplicate check against main Transaction table
+                    exists = Transaction.objects.filter(
+                        user_id=request.user.id,
+                        started_at=item.started_at,
+                        description=item.description,
+                        amount=item.amount,
+                    ).exists()
+
+                    if not exists:
+                        # Resolve category
+                        from apps.categories.models import Category
+                        category = Category.objects.filter(name=item.category_name, user__in=[request.user, None]).first()
+
+                        Transaction.objects.create(
+                            user_id=request.user.id,
+                            started_at=item.started_at,
+                            completed_at=item.completed_at,
+                            description=item.description,
+                            amount=item.amount,
+                            fee=item.fee,
+                            currency=item.currency,
+                            transaction_type=item.transaction_type,
+                            state=item.state,
+                            balance_after=item.balance_after,
+                            category=category,
+                            import_batch=import_batch,
+                        )
+                        committed_count += 1
+
+                # Update batch status and cleanup
+                import_batch.status = 'COMPLETED'
+                import_batch.imported_count = committed_count
+                import_batch.save()
+
+                # Cleanup staging
+                ImportStaging.objects.filter(import_batch=import_batch).delete()
+
+            return Response(
+                {"message": f"Importazione completata. {committed_count} transazioni salvate."},
+                status=status.HTTP_200_OK,
+            )
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

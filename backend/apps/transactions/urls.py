@@ -17,6 +17,11 @@ urlpatterns = [
         views.ImportBatchTransactionsView.as_view(),
         name="import-batch-transactions",
     ),
+    path(
+        "import/<int:pk>/commit/",
+        views.ImportCommitView.as_view(),
+        name="import-batch-commit",
+    ),
     path("<int:pk>/", views.TransactionDetailView.as_view(), name="transaction-detail"),
     path(
         "<int:pk>/update/",

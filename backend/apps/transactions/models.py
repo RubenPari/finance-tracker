@@ -20,6 +20,7 @@ class ImportBatch(models.Model):
         choices=[
             ('PENDING', 'In attesa'),
             ('PROCESSING', 'In elaborazione'),
+            ('STAGED', 'Caricati in staging'),
             ('COMPLETED', 'Completato'),
             ('FAILED', 'Fallito'),
         ],
@@ -32,6 +33,48 @@ class ImportBatch(models.Model):
 
     def __str__(self):
         return f'{self.filename} ({self.imported_at.date()})'
+
+
+class ImportStaging(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='import_staging',
+    )
+    import_batch = models.ForeignKey(
+        ImportBatch,
+        on_delete=models.CASCADE,
+        related_name='staged_transactions',
+    )
+    started_at = models.DateTimeField()
+    completed_at = models.DateTimeField()
+    description = models.CharField(max_length=500)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    currency = models.CharField(max_length=3, default='EUR')
+    transaction_type = models.CharField(max_length=30)
+    state = models.CharField(max_length=30, default='COMPLETATO')
+    balance_after = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+    category_name = models.CharField(max_length=100, blank=True, null=True)
+    row_hash = models.CharField(max_length=64, blank=True, null=True)
+    is_error = models.BooleanField(default=False)
+    error_message = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'import_staging'
+        indexes = [
+            models.Index(fields=['user', 'import_batch']),
+            models.Index(fields=['row_hash']),
+        ]
+
+    def __str__(self):
+        return f'Staged: {self.description} ({self.amount})'
 
 
 class Transaction(models.Model):

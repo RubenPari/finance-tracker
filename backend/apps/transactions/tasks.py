@@ -8,6 +8,7 @@ User = get_user_model()
 
 @shared_task
 def process_import_xlsx(batch_id: int, user_id: int, file_content: bytes, filename: str):
+    # Now this only processes the file into the staging area (STAGED status)
     result = process_import_sync(batch_id, user_id, file_content, filename)
     try:
         user = User.objects.get(pk=user_id)

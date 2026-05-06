@@ -1,11 +1,12 @@
 import logging
 import pandas as pd
 import numpy as np
+import hashlib
 from io import BytesIO
 from decimal import Decimal
 from django.db import transaction as db_transaction
 
-from .models import Transaction, ImportBatch
+from .models import Transaction, ImportBatch, ImportStaging
 from apps.categories.models import Category, CategoryRule
 from apps.categories.ai_categorization import batch_categorize
 
@@ -57,6 +58,17 @@ def auto_categorize(user, description, description_to_category=None):
     return None
 
 
+def compute_row_hash(row):
+    """Compute a unique hash for a transaction row to detect duplicates across files."""
+    data = (
+        str(row['Data di inizio']),
+        str(row['Descrizione']),
+        str(row['Importo']),
+        str(row['Valuta']),
+    )
+    return hashlib.sha256(''.join(data).encode('utf-8')).hexdigest()
+
+
 def process_import_sync(batch_id: int, user_id: int, file_content: bytes, filename: str) -> dict:
     import_batch = ImportBatch.objects.get(id=batch_id)
     try:
@@ -84,14 +96,22 @@ def process_import_sync(batch_id: int, user_id: int, file_content: bytes, filena
                     balance_val = row.get('Saldo')
                     balance_after = Decimal(str(balance_val)) if balance_val is not None else None
 
-                    exists = Transaction.objects.filter(
+                    row_hash = compute_row_hash(row)
+
+                    # Check if this transaction already exists in main table or in another staged batch
+                    exists_in_main = Transaction.objects.filter(
                         user_id=user_id,
                         started_at=started_at,
                         description=description,
                         amount=amount,
                     ).exists()
 
-                    if exists:
+                    exists_in_staging = ImportStaging.objects.filter(
+                        user_id=user_id,
+                        row_hash=row_hash,
+                    ).exists()
+
+                    if exists_in_main or exists_in_staging:
                         skipped += 1
                         continue
 
@@ -101,8 +121,11 @@ def process_import_sync(batch_id: int, user_id: int, file_content: bytes, filena
                         description_to_category=description_to_category,
                     )
 
-                    Transaction.objects.create(
+                    category_name = category.name if category else None
+
+                    ImportStaging.objects.create(
                         user_id=user_id,
+                        import_batch=import_batch,
                         started_at=started_at,
                         completed_at=completed_at,
                         description=description,
@@ -112,8 +135,8 @@ def process_import_sync(batch_id: int, user_id: int, file_content: bytes, filena
                         transaction_type=transaction_type,
                         state=state,
                         balance_after=balance_after,
-                        category=category,
-                        import_batch=import_batch,
+                        category_name=category_name,
+                        row_hash=row_hash,
                     )
                     imported += 1
                 except Exception as e:
@@ -124,7 +147,7 @@ def process_import_sync(batch_id: int, user_id: int, file_content: bytes, filena
         import_batch.imported_count = imported
         import_batch.skipped_count = skipped
         import_batch.error_count = errors
-        import_batch.status = 'COMPLETED'
+        import_batch.status = 'STAGED'
         import_batch.save()
 
         return {
