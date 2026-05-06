@@ -122,9 +122,12 @@ watch([filters, page], loadData, { deep: true })
           </thead>
           <tbody>
             <template v-for="tx in transactions" :key="tx.id">
-              <tr class="border-b border-gray-100 hover:bg-gray-50" :class="{
-                'bg-blue-50/50': editingId === tx.id,
-              }">
+              <tr
+                class="border-b border-gray-100 hover:bg-gray-50"
+                :class="{
+                  'bg-blue-50/50': editingId === tx.id,
+                }"
+              >
                 <td class="py-3 pr-4 whitespace-nowrap text-gray-600">
                   {{ formatDate(tx.completed_at) }}
                 </td>
@@ -154,11 +157,14 @@ watch([filters, page], loadData, { deep: true })
                     <span v-else class="text-xs text-gray-400">—</span>
                   </template>
                 </td>
-                <td class="py-3 pr-4 text-right font-medium whitespace-nowrap" :class="{
-                  'text-red-600': tx.amount < 0,
-                  'text-green-600': tx.amount > 0,
-                  'text-gray-500': tx.amount === 0,
-                }">
+                <td
+                  class="py-3 pr-4 text-right font-medium whitespace-nowrap"
+                  :class="{
+                    'text-red-600': tx.amount < 0,
+                    'text-green-600': tx.amount > 0,
+                    'text-gray-500': tx.amount === 0,
+                  }"
+                >
                   {{ formatCurrency(tx.amount) }}
                 </td>
                 <td class="py-3 pr-4 whitespace-nowrap">
@@ -197,21 +203,9 @@ watch([filters, page], loadData, { deep: true })
       </div>
 
       <div v-if="totalPages > 1" class="mt-4 flex items-center justify-center gap-2">
-        <button
-          class="btn-secondary"
-          :disabled="page <= 1"
-          @click="page--"
-        >
-          Precedente
-        </button>
-        <span class="text-sm text-gray-500">
-          Pagina {{ page }} di {{ totalPages }}
-        </span>
-        <button
-          class="btn-secondary"
-          :disabled="page >= totalPages"
-          @click="page++"
-        >
+        <button class="btn-secondary" :disabled="page <= 1" @click="page--">Precedente</button>
+        <span class="text-sm text-gray-500"> Pagina {{ page }} di {{ totalPages }} </span>
+        <button class="btn-secondary" :disabled="page >= totalPages" @click="page++">
           Successiva
         </button>
       </div>

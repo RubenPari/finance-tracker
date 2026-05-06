@@ -1,14 +1,7 @@
 <script setup lang="ts">
 import type { MonthlyTrend } from '@/types'
 import { Bar } from 'vue-chartjs'
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Tooltip,
-  Legend,
-} from 'chart.js'
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip, Legend } from 'chart.js'
 import { computed } from 'vue'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend)

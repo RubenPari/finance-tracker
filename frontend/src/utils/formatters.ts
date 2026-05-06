@@ -3,7 +3,11 @@ export function formatCurrency(v: number): string {
 }
 
 export function formatDate(d: string): string {
-  return new Date(d).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })
+  return new Date(d).toLocaleDateString('it-IT', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
 }
 
 export function formatDateTime(d: string): string {

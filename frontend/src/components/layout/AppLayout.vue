@@ -39,9 +39,7 @@ const navItems = [
         <div class="sidebar-link mb-2 text-xs">
           {{ auth.user?.email }}
         </div>
-        <button class="btn-secondary w-full" @click="auth.logout()">
-          Esci
-        </button>
+        <button class="btn-secondary w-full" @click="auth.logout()">Esci</button>
       </div>
     </aside>
 

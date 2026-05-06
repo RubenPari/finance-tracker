@@ -100,11 +100,20 @@ onMounted(loadData)
         <div class="flex items-end gap-3">
           <div class="flex-1">
             <label class="mb-1 block text-xs font-medium text-gray-600">Nome</label>
-            <input v-model="newCatName" type="text" class="input-field" placeholder="Nome categoria" />
+            <input
+              v-model="newCatName"
+              type="text"
+              class="input-field"
+              placeholder="Nome categoria"
+            />
           </div>
           <div>
             <label class="mb-1 block text-xs font-medium text-gray-600">Colore</label>
-            <input v-model="newCatColor" type="color" class="h-10 w-16 rounded border border-gray-300" />
+            <input
+              v-model="newCatColor"
+              type="color"
+              class="h-10 w-16 rounded border border-gray-300"
+            />
           </div>
           <button class="btn-primary" @click="createCategory">Crea</button>
           <button class="btn-secondary" @click="showCreateCategory = false">Annulla</button>
@@ -126,14 +135,14 @@ onMounted(loadData)
             </span>
             <span class="text-sm font-medium text-gray-900">{{ cat.name }}</span>
           </div>
-          <button
-            class="text-xs text-red-500 hover:text-red-700"
-            @click="deleteCategory(cat.id)"
-          >
+          <button class="text-xs text-red-500 hover:text-red-700" @click="deleteCategory(cat.id)">
             Elimina
           </button>
         </div>
-        <div v-if="!categories.filter((c) => !c.is_system).length" class="col-span-full py-4 text-center text-sm text-gray-400">
+        <div
+          v-if="!categories.filter((c) => !c.is_system).length"
+          class="col-span-full py-4 text-center text-sm text-gray-400"
+        >
           Nessuna categoria personalizzata
         </div>
       </div>
@@ -175,33 +184,36 @@ onMounted(loadData)
       <LoadingSpinner v-if="loading" :loading="true" />
 
       <template v-else>
-        <EmptyState v-if="!rules.length" message="Nessuna regola definita. Crea una regola per categorizzare automaticamente le transazioni." />
+        <EmptyState
+          v-if="!rules.length"
+          message="Nessuna regola definita. Crea una regola per categorizzare automaticamente le transazioni."
+        />
 
         <div v-else class="card">
-        <div class="space-y-2">
-          <div
-            v-for="rule in rules"
-            :key="rule.id"
-            class="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2"
-          >
-            <div class="flex items-center gap-3">
-              <span class="text-sm font-mono text-gray-700">"{{ rule.keyword }}"</span>
-              <span class="text-xs text-gray-400">→</span>
-              <span
-                class="rounded-full px-2 py-0.5 text-xs font-medium"
-                :style="{ backgroundColor: `${rule.category_color}20`, color: rule.category_color }"
-              >
-                {{ rule.category_name }}
-              </span>
-            </div>
-            <button
-              class="text-xs text-red-500 hover:text-red-700"
-              @click="deleteRule(rule.id)"
+          <div class="space-y-2">
+            <div
+              v-for="rule in rules"
+              :key="rule.id"
+              class="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2"
             >
-              Elimina
-            </button>
+              <div class="flex items-center gap-3">
+                <span class="text-sm font-mono text-gray-700">"{{ rule.keyword }}"</span>
+                <span class="text-xs text-gray-400">→</span>
+                <span
+                  class="rounded-full px-2 py-0.5 text-xs font-medium"
+                  :style="{
+                    backgroundColor: `${rule.category_color}20`,
+                    color: rule.category_color,
+                  }"
+                >
+                  {{ rule.category_name }}
+                </span>
+              </div>
+              <button class="text-xs text-red-500 hover:text-red-700" @click="deleteRule(rule.id)">
+                Elimina
+              </button>
+            </div>
           </div>
-        </div>
         </div>
       </template>
     </div>

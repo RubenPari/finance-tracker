@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import { statsApi } from '@/api'
-import type { StatsSummary, CategoryStats, MonthlyTrend, TopMerchant, CategoryComparison } from '@/types'
+import type {
+  StatsSummary,
+  CategoryStats,
+  MonthlyTrend,
+  TopMerchant,
+  CategoryComparison,
+} from '@/types'
 import { DonutChart, BarChart } from '@/components/dashboard'
 import { formatCurrency } from '@/utils/formatters'
 import LoadingSpinner from '@/components/ui/LoadingSpinner.vue'
@@ -107,9 +113,7 @@ const periodOptions = [
                 <span class="mr-2 text-sm font-medium text-gray-500">#{{ i + 1 }}</span>
                 <span class="text-sm font-medium text-gray-900">{{ m.merchant }}</span>
               </div>
-              <span class="text-sm font-semibold text-red-600">{{
-                formatCurrency(m.total)
-              }}</span>
+              <span class="text-sm font-semibold text-red-600">{{ formatCurrency(m.total) }}</span>
             </div>
           </div>
           <p v-else class="py-8 text-center text-sm text-gray-400">Nessun dato nel periodo</p>

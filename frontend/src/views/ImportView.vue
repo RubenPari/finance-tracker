@@ -55,7 +55,7 @@ async function upload(file: File) {
     }
   } catch (e: unknown) {
     const resp = (e as { response?: { data?: { error?: string } } }).response
-    error.value = resp?.data?.error || 'Errore durante l\'upload del file.'
+    error.value = resp?.data?.error || "Errore durante l'upload del file."
   } finally {
     uploading.value = false
   }
@@ -108,17 +108,9 @@ onUnmounted(stopPolling)
         @click="fileInput?.click()"
       >
         <span class="mb-3 text-4xl">📄</span>
-        <p class="text-lg font-medium text-gray-700">
-          Trascina il file XLSX di Revolut qui
-        </p>
+        <p class="text-lg font-medium text-gray-700">Trascina il file XLSX di Revolut qui</p>
         <p class="mt-1 text-sm text-gray-400">oppure clicca per selezionare</p>
-        <input
-          ref="fileInput"
-          type="file"
-          accept=".xlsx"
-          class="hidden"
-          @change="onFileSelect"
-        />
+        <input ref="fileInput" type="file" accept=".xlsx" class="hidden" @change="onFileSelect" />
       </div>
       <div v-if="error" class="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
         {{ error }}
@@ -126,7 +118,9 @@ onUnmounted(stopPolling)
     </form>
 
     <div v-if="uploading && result" class="card text-center">
-      <div class="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
+      <div
+        class="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"
+      />
       <p class="font-medium text-gray-700">Elaborazione in corso...</p>
       <p class="mt-1 text-sm text-gray-400">Importazione di {{ result.filename }}</p>
     </div>
@@ -148,7 +142,9 @@ onUnmounted(stopPolling)
         </div>
         <div class="rounded-lg bg-gray-100 p-4 text-center">
           <p class="text-2xl font-bold text-gray-700">
-            {{ result.total_rows - result.imported_count - result.skipped_count - result.error_count }}
+            {{
+              result.total_rows - result.imported_count - result.skipped_count - result.error_count
+            }}
           </p>
           <p class="text-xs text-gray-500">Scartate</p>
         </div>
@@ -187,7 +183,9 @@ onUnmounted(stopPolling)
             <div class="flex gap-4 text-xs">
               <span class="text-green-600">{{ batch.imported_count }} importate</span>
               <span class="text-yellow-600">{{ batch.skipped_count }} duplicate</span>
-              <span v-if="batch.error_count" class="text-red-600">{{ batch.error_count }} errori</span>
+              <span v-if="batch.error_count" class="text-red-600"
+                >{{ batch.error_count }} errori</span
+              >
             </div>
           </div>
         </div>

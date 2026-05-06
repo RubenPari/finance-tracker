@@ -63,8 +63,7 @@ api.interceptors.response.use(
 export const authApi = {
   login: (email: string, password: string) =>
     api.post<AuthResponse>('/auth/login/', { email, password }),
-  register: (data: Record<string, string>) =>
-    api.post<AuthResponse>('/auth/register/', data),
+  register: (data: Record<string, string>) => api.post<AuthResponse>('/auth/register/', data),
   refresh: (refresh: string) =>
     api.post<{ access: string; refresh: string }>('/auth/refresh/', { refresh }),
   logout: (refresh: string) => api.post('/auth/logout/', { refresh }),
@@ -102,11 +101,9 @@ export const categoriesApi = {
 }
 
 export const budgetsApi = {
-  list: (params?: { year?: number; month?: number }) =>
-    api.get<Budget[]>('/budgets/', { params }),
+  list: (params?: { year?: number; month?: number }) => api.get<Budget[]>('/budgets/', { params }),
   create: (data: Partial<Budget>) => api.post<Budget>('/budgets/create/', data),
-  update: (id: number, data: Partial<Budget>) =>
-    api.patch<Budget>(`/budgets/${id}/update/`, data),
+  update: (id: number, data: Partial<Budget>) => api.patch<Budget>(`/budgets/${id}/update/`, data),
   delete: (id: number) => api.delete(`/budgets/${id}/delete/`),
 }
 

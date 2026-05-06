@@ -44,9 +44,7 @@ onMounted(loadSuggestions)
   <div>
     <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
       <h1 class="text-2xl font-bold text-gray-900">Suggerimenti</h1>
-      <button class="btn-secondary text-sm" @click="loadSuggestions">
-        Aggiorna
-      </button>
+      <button class="btn-secondary text-sm" @click="loadSuggestions">Aggiorna</button>
     </div>
 
     <LoadingSpinner v-if="loading" />

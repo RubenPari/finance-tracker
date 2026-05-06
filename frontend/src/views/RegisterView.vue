@@ -28,7 +28,8 @@ async function onSubmit() {
     const resp = (e as { response?: { data?: Record<string, unknown> } }).response
     if (resp?.data) {
       const data = resp.data as Record<string, unknown>
-      if (data.password_confirm) fieldErrors.value.password_confirm = [data.password_confirm as string]
+      if (data.password_confirm)
+        fieldErrors.value.password_confirm = [data.password_confirm as string]
       if (data.email) fieldErrors.value.email = [data.email as string]
       if (data.password) fieldErrors.value.password = [data.password as string]
       if (data.detail) error.value = data.detail as string
@@ -58,7 +59,12 @@ async function onSubmit() {
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="mb-1 block text-sm font-medium text-gray-700">Nome</label>
-              <input v-model="form.first_name" type="text" class="input-field" placeholder="Mario" />
+              <input
+                v-model="form.first_name"
+                type="text"
+                class="input-field"
+                placeholder="Mario"
+              />
             </div>
             <div>
               <label class="mb-1 block text-sm font-medium text-gray-700">Cognome</label>

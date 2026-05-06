@@ -51,8 +51,18 @@ async function deleteBudget(id: number) {
 }
 
 const months = [
-  'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
-  'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre',
+  'Gennaio',
+  'Febbraio',
+  'Marzo',
+  'Aprile',
+  'Maggio',
+  'Giugno',
+  'Luglio',
+  'Agosto',
+  'Settembre',
+  'Ottobre',
+  'Novembre',
+  'Dicembre',
 ]
 
 function prevMonth() {
@@ -80,9 +90,7 @@ onMounted(loadData)
   <div>
     <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
       <h1 class="text-2xl font-bold text-gray-900">Budget</h1>
-      <button class="btn-primary" @click="showCreate = !showCreate">
-        + Nuovo budget
-      </button>
+      <button class="btn-primary" @click="showCreate = !showCreate">+ Nuovo budget</button>
     </div>
 
     <div class="card mb-6">
@@ -124,17 +132,10 @@ onMounted(loadData)
     <LoadingSpinner v-if="loading" />
     <EmptyState v-else-if="!budgets.length" message="Nessun budget definito per questo mese" />
     <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      <div
-        v-for="b in budgets"
-        :key="b.id"
-        class="card"
-      >
+      <div v-for="b in budgets" :key="b.id" class="card">
         <div class="mb-3 flex items-center justify-between">
           <div class="flex items-center gap-2">
-            <span
-              class="h-3 w-3 rounded-full"
-              :style="{ backgroundColor: b.category_color }"
-            />
+            <span class="h-3 w-3 rounded-full" :style="{ backgroundColor: b.category_color }" />
             <span class="text-sm font-semibold text-gray-900">{{ b.category_name }}</span>
           </div>
           <button class="text-xs text-red-500 hover:text-red-700" @click="deleteBudget(b.id)">
@@ -162,18 +163,9 @@ onMounted(loadData)
 
         <div class="flex items-center justify-between text-xs">
           <span class="text-gray-400">{{ b.percentage }}% utilizzato</span>
-          <span
-            v-if="b.percentage >= 100"
-            class="font-medium text-red-600"
-          >Budget superato!</span>
-          <span
-            v-else-if="b.percentage >= 80"
-            class="font-medium text-yellow-600"
-          >Attenzione</span>
-          <span
-            v-else
-            class="font-medium text-green-600"
-          >
+          <span v-if="b.percentage >= 100" class="font-medium text-red-600">Budget superato!</span>
+          <span v-else-if="b.percentage >= 80" class="font-medium text-yellow-600">Attenzione</span>
+          <span v-else class="font-medium text-green-600">
             {{ formatCurrency(b.amount_limit - b.current_spent) }} rimanenti
           </span>
         </div>
