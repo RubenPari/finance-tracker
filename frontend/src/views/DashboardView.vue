@@ -10,7 +10,19 @@ import type {
 } from '@/types'
 import { DonutChart, BarChart } from '@/components/dashboard'
 import { formatCurrency } from '@/utils/formatters'
-import LoadingSpinner from '@/components/ui/LoadingSpinner.vue'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import { TrendingUp, TrendingDown, ArrowLeftRight, Wallet } from 'lucide-vue-next'
 
 const period = ref('month')
 const summary = ref<StatsSummary | null>(null)
@@ -45,7 +57,7 @@ onMounted(loadData)
 watch(period, loadData)
 
 const periodOptions = [
-  { value: 'month', label: 'Mese corrente' },
+  { value: 'month', label: 'Mese' },
   { value: 'quarter', label: 'Trimestre' },
   { value: 'year', label: 'Anno' },
 ]
@@ -54,101 +66,169 @@ const periodOptions = [
 <template>
   <div>
     <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
-      <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
-      <div class="flex gap-2">
-        <button
+      <h1 class="text-2xl font-bold tracking-tight">Dashboard</h1>
+      <ToggleGroup
+        type="single"
+        :model-value="period"
+        variant="outline"
+        @update:model-value="period = $event"
+      >
+        <ToggleGroupItem
           v-for="opt in periodOptions"
           :key="opt.value"
-          :class="period === opt.value ? 'btn-primary' : 'btn-secondary'"
-          @click="period = opt.value"
+          :value="opt.value"
         >
           {{ opt.label }}
-        </button>
-      </div>
+        </ToggleGroupItem>
+      </ToggleGroup>
     </div>
 
-    <LoadingSpinner v-if="loading" />
+    <template v-if="loading">
+      <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Skeleton v-for="i in 3" :key="i" class="h-32" />
+      </div>
+    </template>
     <template v-else>
       <div v-if="summary" class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div class="card">
-          <p class="text-sm text-gray-500">Spese totali</p>
-          <p class="mt-1 text-2xl font-bold text-red-600">
-            {{ formatCurrency(summary.total_expenses) }}
-          </p>
-          <p class="text-xs text-gray-400">{{ summary.transaction_count }} transazioni</p>
-        </div>
-        <div class="card">
-          <p class="text-sm text-gray-500">Entrate totali</p>
-          <p class="mt-1 text-2xl font-bold text-green-600">
-            {{ formatCurrency(summary.total_income) }}
-          </p>
-        </div>
-        <div class="card">
-          <p class="text-sm text-gray-500">Saldo netto</p>
-          <p
-            class="mt-1 text-2xl font-bold"
-            :class="summary.net >= 0 ? 'text-blue-600' : 'text-red-600'"
-          >
-            {{ formatCurrency(summary.net) }}
-          </p>
-        </div>
+        <Card class="border-l-4 border-l-expense">
+          <CardHeader class="pb-2">
+            <CardDescription class="flex items-center gap-1.5">
+              <TrendingDown class="size-4" />
+              Spese totali
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div class="text-2xl font-bold font-mono tabular-nums text-expense">
+              {{ formatCurrency(summary.total_expenses) }}
+            </div>
+            <p class="text-xs text-muted-foreground">{{ summary.transaction_count }} transazioni</p>
+          </CardContent>
+        </Card>
+
+        <Card class="border-l-4 border-l-income">
+          <CardHeader class="pb-2">
+            <CardDescription class="flex items-center gap-1.5">
+              <TrendingUp class="size-4" />
+              Entrate totali
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div class="text-2xl font-bold font-mono tabular-nums text-income">
+              {{ formatCurrency(summary.total_income) }}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card class="border-l-4 border-l-primary">
+          <CardHeader class="pb-2">
+            <CardDescription class="flex items-center gap-1.5">
+              <Wallet class="size-4" />
+              Saldo netto
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div
+              class="text-2xl font-bold font-mono tabular-nums"
+              :class="summary.net >= 0 ? 'text-income' : 'text-expense'"
+            >
+              {{ formatCurrency(summary.net) }}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div class="card">
-          <h2 class="mb-4 text-lg font-semibold text-gray-900">Spese per categoria</h2>
-          <DonutChart v-if="byCategory.length" :data="byCategory" />
-          <p v-else class="py-8 text-center text-sm text-gray-400">Nessun dato nel periodo</p>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle class="text-base">Spese per categoria</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <DonutChart v-if="byCategory.length" :data="byCategory" />
+            <p v-else class="py-8 text-center text-sm text-muted-foreground">Nessun dato nel periodo</p>
+          </CardContent>
+        </Card>
 
-        <div class="card">
-          <h2 class="mb-4 text-lg font-semibold text-gray-900">Top 5 merchant</h2>
-          <div v-if="topMerchants.length" class="space-y-3">
-            <div
-              v-for="(m, i) in topMerchants"
-              :key="i"
-              class="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-3"
-            >
-              <div>
-                <span class="mr-2 text-sm font-medium text-gray-500">#{{ i + 1 }}</span>
-                <span class="text-sm font-medium text-gray-900">{{ m.merchant }}</span>
-              </div>
-              <span class="text-sm font-semibold text-red-600">{{ formatCurrency(m.total) }}</span>
+        <Card>
+          <CardHeader>
+            <CardTitle class="text-base">Top 5 merchant</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div v-if="topMerchants.length">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead class="w-10">#</TableHead>
+                    <TableHead>Merchant</TableHead>
+                    <TableHead class="text-right">Totale</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <TableRow v-for="(m, i) in topMerchants" :key="i">
+                    <TableCell class="font-mono tabular-nums text-muted-foreground">
+                      {{ i + 1 }}
+                    </TableCell>
+                    <TableCell class="font-medium">{{ m.merchant }}</TableCell>
+                    <TableCell class="text-right font-mono tabular-nums text-expense">
+                      {{ formatCurrency(m.total) }}
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
             </div>
-          </div>
-          <p v-else class="py-8 text-center text-sm text-gray-400">Nessun dato nel periodo</p>
-        </div>
+            <p v-else class="py-8 text-center text-sm text-muted-foreground">Nessun dato nel periodo</p>
+          </CardContent>
+        </Card>
       </div>
 
       <div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div class="card">
-          <h2 class="mb-4 text-lg font-semibold text-gray-900">Andamento mensile (12 mesi)</h2>
-          <BarChart v-if="monthly.length" :data="monthly" />
-          <p v-else class="py-8 text-center text-sm text-gray-400">Nessun dato disponibile</p>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle class="text-base">Andamento mensile (12 mesi)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <BarChart v-if="monthly.length" :data="monthly" />
+            <p v-else class="py-8 text-center text-sm text-muted-foreground">Nessun dato disponibile</p>
+          </CardContent>
+        </Card>
 
-        <div class="card">
-          <h2 class="mb-4 text-lg font-semibold text-gray-900">Confronto con periodo precedente</h2>
-          <div v-if="comparison.length" class="space-y-2">
-            <div
-              v-for="c in comparison.filter((x) => x.change_pct !== null).slice(0, 8)"
-              :key="c.category"
-              class="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2"
-            >
-              <div class="flex items-center gap-2">
-                <span class="h-3 w-3 rounded-full" :style="{ backgroundColor: c.color }" />
-                <span class="text-sm text-gray-900">{{ c.category }}</span>
-              </div>
-              <span
-                class="text-sm font-medium"
-                :class="c.change_pct && c.change_pct > 0 ? 'text-red-600' : 'text-green-600'"
-              >
-                {{ c.change_pct && c.change_pct > 0 ? '+' : '' }}{{ c.change_pct }}%
-              </span>
+        <Card>
+          <CardHeader>
+            <CardTitle class="text-base">Confronto con periodo precedente</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div v-if="comparison.length">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Categoria</TableHead>
+                    <TableHead class="text-right">Variazione</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <TableRow
+                    v-for="c in comparison.filter((x) => x.change_pct !== null).slice(0, 8)"
+                    :key="c.category"
+                  >
+                    <TableCell>
+                      <div class="flex items-center gap-2">
+                        <span class="size-3 rounded-full" :style="{ backgroundColor: c.color }" />
+                        <span>{{ c.category }}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell class="text-right">
+                      <Badge
+                        :variant="c.change_pct && c.change_pct > 0 ? 'destructive' : 'secondary'"
+                      >
+                        {{ c.change_pct && c.change_pct > 0 ? '+' : '' }}{{ c.change_pct }}%
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
             </div>
-          </div>
-          <p v-else class="py-8 text-center text-sm text-gray-400">Nessun dato disponibile</p>
-        </div>
+            <p v-else class="py-8 text-center text-sm text-muted-foreground">Nessun dato disponibile</p>
+          </CardContent>
+        </Card>
       </div>
     </template>
   </div>
