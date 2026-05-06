@@ -49,3 +49,4 @@ frontend/*.timestamp-*-*.mjs
 .idea/
 *.sw?
 .kilo/plans/
+backend/celerybeat-schedule
