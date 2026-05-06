@@ -2,6 +2,11 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import AuthLayout from '@/components/layout/AuthLayout.vue'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -26,56 +31,57 @@ async function onSubmit() {
 </script>
 
 <template>
-  <div class="flex min-h-screen items-center justify-center bg-gray-50 px-4">
-    <div class="w-full max-w-md">
-      <div class="card">
-        <div class="mb-8 text-center">
-          <span class="text-4xl">📊</span>
-          <h1 class="mt-3 text-2xl font-bold text-gray-900">Finance Tracker</h1>
-          <p class="mt-1 text-sm text-gray-500">Accedi al tuo account</p>
-        </div>
-
+  <AuthLayout>
+    <Card class="w-full max-w-md">
+      <CardHeader class="text-center">
+        <CardTitle class="text-2xl">Accedi</CardTitle>
+        <CardDescription>Inserisci le tue credenziali per accedere</CardDescription>
+      </CardHeader>
+      <CardContent>
         <form class="space-y-4" @submit.prevent="onSubmit">
-          <div v-if="error" class="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div
+            v-if="error"
+            class="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+          >
             {{ error }}
           </div>
 
-          <div>
-            <label class="mb-1 block text-sm font-medium text-gray-700">Email</label>
-            <input
+          <div class="space-y-2">
+            <Label for="email">Email</Label>
+            <Input
+              id="email"
               v-model="email"
               type="email"
               required
-              class="input-field"
               placeholder="nome@email.com"
               autocomplete="email"
             />
           </div>
 
-          <div>
-            <label class="mb-1 block text-sm font-medium text-gray-700">Password</label>
-            <input
+          <div class="space-y-2">
+            <Label for="password">Password</Label>
+            <Input
+              id="password"
               v-model="password"
               type="password"
               required
-              class="input-field"
               placeholder="••••••••"
               autocomplete="current-password"
             />
           </div>
 
-          <button type="submit" class="btn-primary w-full" :disabled="loading">
+          <Button type="submit" class="w-full" :disabled="loading">
             {{ loading ? 'Accesso in corso...' : 'Accedi' }}
-          </button>
+          </Button>
         </form>
 
-        <p class="mt-4 text-center text-sm text-gray-500">
+        <p class="mt-4 text-center text-sm text-muted-foreground">
           Non hai un account?
-          <RouterLink to="/register" class="font-medium text-blue-600 hover:text-blue-500">
+          <RouterLink to="/register" class="font-medium text-primary hover:underline">
             Registrati
           </RouterLink>
         </p>
-      </div>
-    </div>
-  </div>
+      </CardContent>
+    </Card>
+  </AuthLayout>
 </template>

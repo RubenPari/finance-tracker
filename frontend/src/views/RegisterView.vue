@@ -2,6 +2,11 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import AuthLayout from '@/components/layout/AuthLayout.vue'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -42,93 +47,86 @@ async function onSubmit() {
 </script>
 
 <template>
-  <div class="flex min-h-screen items-center justify-center bg-gray-50 px-4">
-    <div class="w-full max-w-md">
-      <div class="card">
-        <div class="mb-8 text-center">
-          <span class="text-4xl">📊</span>
-          <h1 class="mt-3 text-2xl font-bold text-gray-900">Crea un account</h1>
-          <p class="mt-1 text-sm text-gray-500">Inizia a tracciare le tue finanze</p>
-        </div>
-
+  <AuthLayout>
+    <Card class="w-full max-w-md">
+      <CardHeader class="text-center">
+        <CardTitle class="text-2xl">Crea un account</CardTitle>
+        <CardDescription>Inizia a tracciare le tue finanze</CardDescription>
+      </CardHeader>
+      <CardContent>
         <form class="space-y-4" @submit.prevent="onSubmit">
-          <div v-if="error" class="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div
+            v-if="error"
+            class="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+          >
             {{ error }}
           </div>
 
           <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="mb-1 block text-sm font-medium text-gray-700">Nome</label>
-              <input
-                v-model="form.first_name"
-                type="text"
-                class="input-field"
-                placeholder="Mario"
-              />
+            <div class="space-y-2">
+              <Label for="first_name">Nome</Label>
+              <Input id="first_name" v-model="form.first_name" type="text" placeholder="Mario" />
             </div>
-            <div>
-              <label class="mb-1 block text-sm font-medium text-gray-700">Cognome</label>
-              <input v-model="form.last_name" type="text" class="input-field" placeholder="Rossi" />
+            <div class="space-y-2">
+              <Label for="last_name">Cognome</Label>
+              <Input id="last_name" v-model="form.last_name" type="text" placeholder="Rossi" />
             </div>
           </div>
 
-          <div>
-            <label class="mb-1 block text-sm font-medium text-gray-700">Email</label>
-            <input
+          <div class="space-y-2">
+            <Label for="email">Email</Label>
+            <Input
+              id="email"
               v-model="form.email"
               type="email"
               required
-              class="input-field"
-              :class="{ 'border-red-500': fieldErrors.email }"
               placeholder="nome@email.com"
             />
-            <p v-if="fieldErrors.email" class="mt-1 text-xs text-red-600">
+            <p v-if="fieldErrors.email" class="text-xs text-destructive">
               {{ fieldErrors.email[0] }}
             </p>
           </div>
 
-          <div>
-            <label class="mb-1 block text-sm font-medium text-gray-700">Password</label>
-            <input
+          <div class="space-y-2">
+            <Label for="password">Password</Label>
+            <Input
+              id="password"
               v-model="form.password"
               type="password"
               required
-              class="input-field"
-              :class="{ 'border-red-500': fieldErrors.password }"
               placeholder="••••••••"
             />
-            <p v-if="fieldErrors.password" class="mt-1 text-xs text-red-600">
+            <p v-if="fieldErrors.password" class="text-xs text-destructive">
               {{ fieldErrors.password[0] }}
             </p>
           </div>
 
-          <div>
-            <label class="mb-1 block text-sm font-medium text-gray-700">Conferma password</label>
-            <input
+          <div class="space-y-2">
+            <Label for="password_confirm">Conferma password</Label>
+            <Input
+              id="password_confirm"
               v-model="form.password_confirm"
               type="password"
               required
-              class="input-field"
-              :class="{ 'border-red-500': fieldErrors.password_confirm }"
               placeholder="••••••••"
             />
-            <p v-if="fieldErrors.password_confirm" class="mt-1 text-xs text-red-600">
+            <p v-if="fieldErrors.password_confirm" class="text-xs text-destructive">
               {{ fieldErrors.password_confirm[0] }}
             </p>
           </div>
 
-          <button type="submit" class="btn-primary w-full" :disabled="loading">
+          <Button type="submit" class="w-full" :disabled="loading">
             {{ loading ? 'Registrazione...' : 'Registrati' }}
-          </button>
+          </Button>
         </form>
 
-        <p class="mt-4 text-center text-sm text-gray-500">
+        <p class="mt-4 text-center text-sm text-muted-foreground">
           Hai già un account?
-          <RouterLink to="/login" class="font-medium text-blue-600 hover:text-blue-500">
+          <RouterLink to="/login" class="font-medium text-primary hover:underline">
             Accedi
           </RouterLink>
         </p>
-      </div>
-    </div>
-  </div>
+      </CardContent>
+    </Card>
+  </AuthLayout>
 </template>
