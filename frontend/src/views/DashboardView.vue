@@ -3,6 +3,8 @@ import { ref, onMounted, watch } from 'vue'
 import { statsApi } from '@/api'
 import type { StatsSummary, CategoryStats, MonthlyTrend, TopMerchant, CategoryComparison } from '@/types'
 import { DonutChart, BarChart } from '@/components/dashboard'
+import { formatCurrency } from '@/utils/formatters'
+import LoadingSpinner from '@/components/ui/LoadingSpinner.vue'
 
 const period = ref('month')
 const summary = ref<StatsSummary | null>(null)
@@ -41,10 +43,6 @@ const periodOptions = [
   { value: 'quarter', label: 'Trimestre' },
   { value: 'year', label: 'Anno' },
 ]
-
-function formatCurrency(v: number) {
-  return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(v)
-}
 </script>
 
 <template>
@@ -63,10 +61,7 @@ function formatCurrency(v: number) {
       </div>
     </div>
 
-    <div v-if="loading" class="flex items-center justify-center py-20">
-      <div class="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
-    </div>
-
+    <LoadingSpinner v-if="loading" />
     <template v-else>
       <div v-if="summary" class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div class="card">

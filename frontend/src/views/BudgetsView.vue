@@ -2,6 +2,9 @@
 import { ref, onMounted } from 'vue'
 import { budgetsApi, categoriesApi } from '@/api'
 import type { Budget, Category } from '@/types'
+import { formatCurrency } from '@/utils/formatters'
+import LoadingSpinner from '@/components/ui/LoadingSpinner.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 const budgets = ref<Budget[]>([])
 const categories = ref<Category[]>([])
@@ -45,10 +48,6 @@ async function createBudget() {
 async function deleteBudget(id: number) {
   await budgetsApi.delete(id)
   await loadData()
-}
-
-function formatCurrency(v: number) {
-  return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(v)
 }
 
 const months = [
@@ -122,14 +121,8 @@ onMounted(loadData)
       </div>
     </div>
 
-    <div v-if="loading" class="flex justify-center py-12">
-      <div class="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
-    </div>
-
-    <div v-else-if="!budgets.length" class="card py-12 text-center text-sm text-gray-400">
-      Nessun budget definito per questo mese
-    </div>
-
+    <LoadingSpinner v-if="loading" />
+    <EmptyState v-else-if="!budgets.length" message="Nessun budget definito per questo mese" />
     <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <div
         v-for="b in budgets"

@@ -2,6 +2,9 @@
 import { ref, onMounted, watch } from 'vue'
 import { transactionsApi, categoriesApi } from '@/api'
 import type { Transaction, Category } from '@/types'
+import { formatCurrency, formatDate } from '@/utils/formatters'
+import LoadingSpinner from '@/components/ui/LoadingSpinner.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 const transactions = ref<Transaction[]>([])
 const categories = ref<Category[]>([])
@@ -69,14 +72,6 @@ async function deleteTx(id: number) {
   transactions.value = transactions.value.filter((t) => t.id !== id)
 }
 
-function formatCurrency(v: number) {
-  return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(v)
-}
-
-function formatDate(d: string) {
-  return new Date(d).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })
-}
-
 onMounted(loadData)
 watch([filters, page], loadData, { deep: true })
 </script>
@@ -111,14 +106,8 @@ watch([filters, page], loadData, { deep: true })
       </div>
     </div>
 
-    <div v-if="loading" class="flex justify-center py-12">
-      <div class="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
-    </div>
-
-    <div v-else-if="!transactions.length" class="card py-12 text-center text-gray-400">
-      Nessuna transazione trovata
-    </div>
-
+    <LoadingSpinner v-if="loading" />
+    <EmptyState v-else-if="!transactions.length" message="Nessuna transazione trovata" />
     <template v-else>
       <div class="card overflow-x-auto">
         <table class="w-full text-sm">

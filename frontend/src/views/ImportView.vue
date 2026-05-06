@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { transactionsApi } from '@/api'
 import type { ImportBatch } from '@/types'
+import { formatDateTime } from '@/utils/formatters'
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const dragging = ref(false)
@@ -87,10 +88,6 @@ async function loadHistory() {
     const { data } = await transactionsApi.importHistory()
     history.value = data
   } catch {}
-}
-
-function formatDate(d: string) {
-  return new Date(d).toLocaleString('it-IT')
 }
 
 onMounted(loadHistory)
@@ -185,7 +182,7 @@ onUnmounted(stopPolling)
           >
             <div>
               <p class="text-sm font-medium text-gray-900">{{ batch.filename }}</p>
-              <p class="text-xs text-gray-400">{{ formatDate(batch.imported_at) }}</p>
+              <p class="text-xs text-gray-400">{{ formatDateTime(batch.imported_at) }}</p>
             </div>
             <div class="flex gap-4 text-xs">
               <span class="text-green-600">{{ batch.imported_count }} importate</span>
