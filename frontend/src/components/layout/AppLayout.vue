@@ -1,59 +1,127 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import {
+  LayoutDashboard,
+  ArrowLeftRight,
+  Upload,
+  Tags,
+  PiggyBank,
+  Lightbulb,
+  LogOut,
+  BarChart3,
+} from 'lucide-vue-next'
+import ModeToggle from '@/components/ModeToggle.vue'
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarRail,
+  SidebarSeparator,
+  SidebarTrigger,
+} from '@/components/ui/sidebar'
+import { Separator } from '@/components/ui/separator'
 
 const route = useRoute()
 const auth = useAuthStore()
 
 const navItems = [
-  { path: '/dashboard', label: 'Dashboard', icon: '📊' },
-  { path: '/transactions', label: 'Transazioni', icon: '💳' },
-  { path: '/import', label: 'Importa CSV', icon: '📥' },
-  { path: '/categories', label: 'Categorie', icon: '🏷️' },
-  { path: '/budgets', label: 'Budget', icon: '💰' },
-  { path: '/suggestions', label: 'Suggerimenti', icon: '💡' },
+  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/transactions', label: 'Transazioni', icon: ArrowLeftRight },
+  { path: '/import', label: 'Importa', icon: Upload },
+  { path: '/categories', label: 'Categorie', icon: Tags },
+  { path: '/budgets', label: 'Budget', icon: PiggyBank },
+  { path: '/suggestions', label: 'Suggerimenti', icon: Lightbulb },
 ]
 </script>
 
 <template>
-  <div class="flex h-screen overflow-hidden bg-gray-50">
-    <aside class="hidden w-64 flex-shrink-0 border-r border-gray-200 bg-white md:flex md:flex-col">
-      <div class="flex h-16 items-center gap-2 border-b border-gray-200 px-4">
-        <span class="text-xl">📊</span>
-        <span class="text-lg font-semibold text-gray-900">Finance Tracker</span>
-      </div>
+  <SidebarProvider>
+    <Sidebar collapsible="icon">
+      <SidebarHeader class="border-b border-sidebar-border">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg" as-child>
+              <RouterLink to="/dashboard" class="flex items-center gap-2">
+                <div
+                  class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground"
+                >
+                  <BarChart3 class="size-4" />
+                </div>
+                <div class="grid flex-1 text-left text-sm leading-tight">
+                  <span class="truncate font-semibold">Finance Tracker</span>
+                </div>
+              </RouterLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
 
-      <nav class="flex-1 space-y-1 overflow-y-auto p-3">
-        <RouterLink
-          v-for="item in navItems"
-          :key="item.path"
-          :to="item.path"
-          :class="route.path.startsWith(item.path) ? 'sidebar-link-active' : 'sidebar-link'"
-        >
-          <span>{{ item.icon }}</span>
-          {{ item.label }}
-        </RouterLink>
-      </nav>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel>Menu</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem v-for="item in navItems" :key="item.path">
+                <SidebarMenuButton
+                  as-child
+                  :is-active="route.path.startsWith(item.path)"
+                >
+                  <RouterLink :to="item.path">
+                    <component :is="item.icon" />
+                    <span>{{ item.label }}</span>
+                  </RouterLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
 
-      <div class="border-t border-gray-200 p-3">
-        <div class="sidebar-link mb-2 text-xs">
-          {{ auth.user?.email }}
-        </div>
-        <button class="btn-secondary w-full" @click="auth.logout()">Esci</button>
-      </div>
-    </aside>
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg" disabled>
+              <span class="text-xs text-muted-foreground truncate">
+                {{ auth.user?.email }}
+              </span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarSeparator />
+          <SidebarMenuItem>
+            <SidebarMenuButton @click="auth.logout()">
+              <LogOut class="size-4" />
+              <span>Esci</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
 
-    <div class="flex flex-1 flex-col overflow-hidden">
+      <SidebarRail />
+    </Sidebar>
+
+    <SidebarInset>
       <header
-        class="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-6 md:hidden"
+        class="flex h-12 items-center gap-2 border-b px-4"
       >
-        <span class="text-lg font-semibold">📊 Finance Tracker</span>
-        <button class="btn-secondary text-sm" @click="auth.logout()">Esci</button>
+        <SidebarTrigger class="-ml-1" />
+        <Separator orientation="vertical" class="mr-2 h-4" />
+        <div class="flex-1" />
+        <ModeToggle />
       </header>
 
       <main class="flex-1 overflow-y-auto p-6">
         <RouterView />
       </main>
-    </div>
-  </div>
+    </SidebarInset>
+  </SidebarProvider>
 </template>
