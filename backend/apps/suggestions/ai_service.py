@@ -5,6 +5,8 @@ from typing import Optional
 from django.conf import settings
 from django.core.cache import cache
 
+from apps.utils import strip_markdown
+
 AI_GATEWAY_URL = getattr(settings, 'AI_GATEWAY_URL', 'https://gateway.ai.vercel.com/v1/chat/completions')
 AI_GATEWAY_KEY = getattr(settings, 'AI_GATEWAY_KEY', '')
 AI_GATEWAY_MODEL = getattr(settings, 'AI_GATEWAY_MODEL', 'gpt-5')
@@ -44,14 +46,7 @@ def call_ai_gateway(system_prompt: str, user_prompt: str, timeout: int = 10):
 
 
 def _strip_markdown(text: str) -> str:
-    clean = text.strip()
-    if clean.startswith('```json'):
-        clean = clean[7:]
-    if clean.startswith('```'):
-        clean = clean[3:]
-    if clean.endswith('```'):
-        clean = clean[:-3]
-    return clean.strip()
+    return strip_markdown(text)
 
 
 # ====== SUGGESTIONS SPECIFIC ======
