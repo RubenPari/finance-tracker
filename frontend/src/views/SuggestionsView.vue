@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { suggestionsApi } from '@/api'
 import type { Suggestion } from '@/types'
+import LoadingSpinner from '@/components/ui/LoadingSpinner.vue'
 
 const suggestions = ref<Suggestion[]>([])
 const loading = ref(true)
@@ -48,10 +49,7 @@ onMounted(loadSuggestions)
       </button>
     </div>
 
-    <div v-if="loading" class="flex justify-center py-12">
-      <div class="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
-    </div>
-
+    <LoadingSpinner v-if="loading" />
     <div v-else-if="!suggestions.length" class="card py-16 text-center">
       <span class="text-4xl">🎉</span>
       <h2 class="mt-3 text-lg font-semibold text-gray-900">Tutto sotto controllo!</h2>

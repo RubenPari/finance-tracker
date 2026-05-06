@@ -2,6 +2,8 @@
 import { ref, onMounted } from 'vue'
 import { categoriesApi } from '@/api'
 import type { Category, CategoryRule } from '@/types'
+import LoadingSpinner from '@/components/ui/LoadingSpinner.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 const categories = ref<Category[]>([])
 const rules = ref<CategoryRule[]>([])
@@ -170,15 +172,12 @@ onMounted(loadData)
         </div>
       </div>
 
-      <div v-if="loading" class="flex justify-center py-8">
-        <div class="h-6 w-6 animate-spin rounded-full border-3 border-blue-600 border-t-transparent" />
-      </div>
+      <LoadingSpinner v-if="loading" :loading="true" />
 
-      <div v-else-if="!rules.length" class="card py-8 text-center text-sm text-gray-400">
-        Nessuna regola definita. Crea una regola per categorizzare automaticamente le transazioni.
-      </div>
+      <template v-else>
+        <EmptyState v-if="!rules.length" message="Nessuna regola definita. Crea una regola per categorizzare automaticamente le transazioni." />
 
-      <div v-else class="card">
+        <div v-else class="card">
         <div class="space-y-2">
           <div
             v-for="rule in rules"
@@ -203,7 +202,8 @@ onMounted(loadData)
             </button>
           </div>
         </div>
-      </div>
+        </div>
+      </template>
     </div>
   </div>
 </template>
