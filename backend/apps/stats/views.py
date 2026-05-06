@@ -46,19 +46,20 @@ class SummaryView(APIView):
             completed_at__lt=date_to,
         )
 
-        total_expense = qs.filter(amount__lt=0).aggregate(
-            total=Sum('amount')
-        )['total'] or 0
+        aggregates = qs.aggregate(
+            total_expenses=Sum('amount', filter=Q(amount__lt=0)),
+            total_income=Sum('amount', filter=Q(amount__gt=0)),
+            count=Count('id'),
+        )
 
-        total_income = qs.filter(amount__gt=0).aggregate(
-            total=Sum('amount')
-        )['total'] or 0
+        total_expense = abs(float(aggregates['total_expenses'] or 0))
+        total_income = float(aggregates['total_income'] or 0)
 
         return Response({
-            'total_expenses': abs(float(total_expense)),
-            'total_income': float(total_income),
-            'net': float(total_income) - abs(float(total_expense)),
-            'transaction_count': qs.count(),
+            'total_expenses': total_expense,
+            'total_income': total_income,
+            'net': total_income - total_expense,
+            'transaction_count': aggregates['count'],
             'period_from': date_from.date().isoformat(),
             'period_to': (date_to - timedelta(days=1)).isoformat(),
         })
