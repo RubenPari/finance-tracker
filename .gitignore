@@ -48,3 +48,4 @@ frontend/*.timestamp-*-*.mjs
 /.vscode/
 .idea/
 *.sw?
+.kilo/plans/
