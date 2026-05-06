@@ -17,15 +17,15 @@ class BudgetSerializer(serializers.ModelSerializer):
         read_only_fields = ('id',)
 
     def get_current_spent(self, obj):
+        if hasattr(obj, '_current_spent'):
+            return obj._current_spent
+
         from django.db.models import Sum
         from apps.transactions.models import Transaction
         import datetime
 
         start_date = datetime.date(obj.year, obj.month, 1)
-        if obj.month == 12:
-            end_date = datetime.date(obj.year + 1, 1, 1)
-        else:
-            end_date = datetime.date(obj.year, obj.month + 1, 1)
+        end_date = datetime.date(obj.year, obj.month + 1, 1) if obj.month < 12 else datetime.date(obj.year + 1, 1, 1)
 
         spent = Transaction.objects.filter(
             user=obj.user,
@@ -35,7 +35,8 @@ class BudgetSerializer(serializers.ModelSerializer):
             completed_at__lt=end_date,
         ).aggregate(total=Sum('amount'))['total']
 
-        return abs(float(spent or 0))
+        obj._current_spent = abs(float(spent or 0))
+        return obj._current_spent
 
     def get_percentage(self, obj):
         current = self.get_current_spent(obj)
