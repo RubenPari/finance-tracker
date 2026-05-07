@@ -130,6 +130,11 @@ AI_GATEWAY_URL = os.environ.get(
     'AI_GATEWAY_URL', 'https://gateway.ai.vercel.com/v1/chat/completions'
 )
 AI_GATEWAY_KEY = os.environ.get('AI_GATEWAY_KEY', '')
+if not AI_GATEWAY_KEY:
+    raise ValueError(
+        "AI_GATEWAY_KEY is required but not set. "
+        "Add it to your .env file to start the application."
+    )
 AI_GATEWAY_MODEL = os.environ.get('AI_GATEWAY_MODEL', 'xai/grok-4.1-fast-non-reasoning')
 AI_SUGGESTIONS_TIMEOUT = int(os.environ.get('AI_SUGGESTIONS_TIMEOUT', '10'))
 
