@@ -50,3 +50,5 @@ frontend/*.timestamp-*-*.mjs
 *.sw?
 .kilo/plans/
 backend/celerybeat-schedule
+.pi/
+.pi-lens/
