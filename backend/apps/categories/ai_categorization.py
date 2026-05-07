@@ -234,11 +234,14 @@ def batch_categorize(user, descriptions: list[str]) -> dict:
             if batch_mapping:
                 ai_mapping.update(batch_mapping)
 
-    # Cache AI results and merge into the overall mapping
+    # Cache AI results and merge into the overall mapping.
+    # Skip caching None results so transient AI failures don't poison the cache
+    # for the entire TTL window.
     for desc in uncached:
         cat = ai_mapping.get(desc)
-        cache_key = _get_cache_key(user, [desc])
-        cache.set(cache_key, cat, timeout=AI_CATEGORIZATION_CACHE_TTL)
+        if cat is not None:
+            cache_key = _get_cache_key(user, [desc])
+            cache.set(cache_key, cat, timeout=AI_CATEGORIZATION_CACHE_TTL)
         cached_mapping[desc] = cat
 
     # For descriptions where AI returned None, fall back to keyword matching
