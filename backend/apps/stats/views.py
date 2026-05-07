@@ -18,6 +18,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.db.models import Sum, Count, Q
+from django.utils import timezone
 from datetime import datetime, timedelta, date
 from dateutil.relativedelta import relativedelta
 
@@ -42,15 +43,15 @@ def get_date_range(request):
             - date_to (datetime): End of the query period (exclusive, day after last day).
             - prev_months (int): Number of months in the period, used for comparison calculations.
     """
-    now = datetime.now()
+    now = timezone.now()
     period = request.query_params.get('period', 'month')
     date_from_str = request.query_params.get('date_from')
     date_to_str = request.query_params.get('date_to')
 
     if date_from_str and date_to_str:
         # Custom date range: parse and include the full end date by adding one day
-        date_from = datetime.strptime(date_from_str, '%Y-%m-%d')
-        date_to = datetime.strptime(date_to_str, '%Y-%m-%d')
+        date_from = timezone.make_aware(datetime.strptime(date_from_str, '%Y-%m-%d'))
+        date_to = timezone.make_aware(datetime.strptime(date_to_str, '%Y-%m-%d'))
         date_to = date_to + timedelta(days=1)
         prev_months = 1
     elif period == 'year':
@@ -219,7 +220,7 @@ class MonthlyTrendView(APIView):
 
         result = []
         # Start from the first day of the current month
-        current = datetime.now().replace(day=1)
+        current = timezone.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
         # Iterate backwards to generate data for each month in the window.
         # The loop computes the start of each period relative to the window size
