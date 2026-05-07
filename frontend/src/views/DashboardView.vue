@@ -71,7 +71,7 @@ const periodOptions = [
         type="single"
         :model-value="period"
         variant="outline"
-        @update:model-value="period = $event"
+        @update:model-value="period = ($event as string)"
       >
         <ToggleGroupItem
           v-for="opt in periodOptions"
