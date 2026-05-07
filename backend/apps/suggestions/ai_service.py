@@ -9,12 +9,15 @@ the OpenAI Python client library to communicate with the gateway endpoint.
 from __future__ import annotations
 
 import json
+import logging
 
 from django.conf import settings
 from django.core.cache import cache
 from openai import OpenAI
 
 from apps.utils import strip_markdown
+
+logger = logging.getLogger(__name__)
 
 # Configuration constants loaded from Django settings with sensible defaults.
 # These control the AI gateway endpoint, authentication, model selection, and timeout.
@@ -92,7 +95,8 @@ def call_ai_gateway(system_prompt: str, user_prompt: str, timeout: int = 10):
             timeout=timeout,
         )
         return completion.choices[0].message.content
-    except Exception:  # Catch OpenAIError, connection errors, etc.
+    except Exception as exc:  # Catch OpenAIError, connection errors, etc.
+        logger.warning("AI gateway call failed: %s", exc, exc_info=True)
         return None
 
 
