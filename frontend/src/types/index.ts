@@ -247,6 +247,58 @@ export interface Suggestion {
   [key: string]: unknown
 }
 
+/** Detected recurring subscription with usage analytics. */
+export interface Subscription {
+  /** Merchant or description label as seen in the latest transaction. */
+  merchant: string
+  /** Category name assigned to the latest transaction, or null if uncategorised. */
+  category: string | null
+  /** Category colour hex code for display. */
+  color: string
+  /** Detected cadence of the recurring charge. */
+  cadence: 'weekly' | 'monthly' | 'quarterly' | 'yearly' | 'irregular'
+  /** Average absolute amount per charge. */
+  avg_amount: number
+  /** Average number of days between consecutive charges. */
+  avg_interval_days: number
+  /** Total number of detected occurrences in the lookback window. */
+  occurrences: number
+  /** ISO timestamp of the first detected charge. */
+  first_charge: string
+  /** ISO timestamp of the most recent charge. */
+  last_charge: string
+  /** ISO timestamp of the next expected charge, based on cadence. */
+  next_expected: string
+  /** Total amount paid across all detected occurrences. */
+  total_paid: number
+  /** Estimated monthly-equivalent spend (normalised across cadence). */
+  monthly_equivalent: number
+  /** Whether the subscription is still considered active (next charge not overdue). */
+  is_active: boolean
+}
+
+/** Aggregated summary of detected subscriptions. */
+export interface SubscriptionsSummary {
+  /** Number of currently active subscriptions. */
+  active_count: number
+  /** Number of detected subscriptions no longer active. */
+  inactive_count: number
+  /** Sum of monthly-equivalent spend across active subscriptions. */
+  monthly_total: number
+  /** Estimated yearly spend projection (12 × monthly_total). */
+  yearly_projection: number
+  /** Total amount paid across all detected subscriptions in the last 12 months. */
+  total_paid_12m: number
+}
+
+/** Response payload of the /stats/subscriptions/ endpoint. */
+export interface SubscriptionsResponse {
+  /** Summary analytics across all detected subscriptions. */
+  summary: SubscriptionsSummary
+  /** Per-subscription detail items. */
+  items: Subscription[]
+}
+
 /** Paginated API response wrapper (Django REST Framework format). */
 export interface PaginatedResponse<T> {
   /** Total number of items across all pages. */

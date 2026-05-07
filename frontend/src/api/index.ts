@@ -28,6 +28,7 @@ import type {
   BalancePoint,
   CategoryComparison,
   Suggestion,
+  SubscriptionsResponse,
   PaginatedResponse,
 } from '@/types'
 
@@ -197,6 +198,8 @@ export const statsApi = {
   /** GET /stats/comparison/ - Get category spending comparison between two periods. */
   comparison: (params?: Record<string, string>) =>
     api.get<CategoryComparison[]>('/stats/comparison/', { params }),
+  /** GET /stats/subscriptions/ - Get detected recurring subscriptions with analytics. */
+  subscriptions: () => api.get<SubscriptionsResponse>('/stats/subscriptions/'),
 }
 
 /**
