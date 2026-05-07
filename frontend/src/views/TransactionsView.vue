@@ -46,7 +46,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { Search, Pencil, Trash2, X, RotateCw } from 'lucide-vue-next'
+import { Search, Pencil, Trash2, X, RotateCw, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-vue-next'
 
 /** List of transactions for the current page */
 const transactions = ref<Transaction[]>([])
@@ -128,6 +128,42 @@ async function saveEdit(tx: Transaction) {
 /** Exits inline edit mode without saving changes. */
 function cancelEdit() {
   editingId.value = null
+}
+
+/** Sortable columns mapped to their backend ordering field. */
+const sortableColumns: { key: string; label: string; field: string; align?: 'right' }[] = [
+  { key: 'date', label: 'Data', field: 'completed_at' },
+  { key: 'description', label: 'Descrizione', field: 'description' },
+  { key: 'category', label: 'Categoria', field: 'category__name' },
+  { key: 'amount', label: 'Importo', field: 'amount', align: 'right' },
+]
+
+/** Fields whose default sort direction is descending (numeric/date columns). */
+const descFirstFields = new Set(['completed_at', 'amount'])
+
+/**
+ * Toggles the sort order on a column.
+ * - If the column is already the active ordering, flips asc/desc.
+ * - Otherwise sets the column's natural default direction (desc for date/amount, asc for text).
+ * Always resets to page 1 so the user sees the top of the new ordering.
+ */
+function toggleSort(field: string) {
+  const current = filters.value.ordering
+  if (current === field) {
+    filters.value.ordering = `-${field}`
+  } else if (current === `-${field}`) {
+    filters.value.ordering = field
+  } else {
+    filters.value.ordering = descFirstFields.has(field) ? `-${field}` : field
+  }
+  page.value = 1
+}
+
+/** Returns the current sort direction for a column: 'asc', 'desc', or null. */
+function sortDirection(field: string): 'asc' | 'desc' | null {
+  if (filters.value.ordering === field) return 'asc'
+  if (filters.value.ordering === `-${field}`) return 'desc'
+  return null
 }
 
 /**
@@ -217,10 +253,27 @@ watch([filters, page], loadData, { deep: true })
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Data</TableHead>
-                <TableHead>Descrizione</TableHead>
-                <TableHead>Categoria</TableHead>
-                <TableHead class="text-right">Importo</TableHead>
+                <TableHead
+                  v-for="col in sortableColumns"
+                  :key="col.key"
+                  :class="[
+                    'cursor-pointer select-none hover:bg-muted/50 transition-colors',
+                    col.align === 'right' ? 'text-right' : '',
+                  ]"
+                  @click="toggleSort(col.field)"
+                >
+                  <span
+                    :class="[
+                      'inline-flex items-center gap-1',
+                      col.align === 'right' ? 'justify-end w-full' : '',
+                    ]"
+                  >
+                    {{ col.label }}
+                    <ArrowUp v-if="sortDirection(col.field) === 'asc'" class="size-3.5" />
+                    <ArrowDown v-else-if="sortDirection(col.field) === 'desc'" class="size-3.5" />
+                    <ArrowUpDown v-else class="size-3.5 text-muted-foreground/50" />
+                  </span>
+                </TableHead>
                 <TableHead class="w-24">Azioni</TableHead>
               </TableRow>
             </TableHeader>
