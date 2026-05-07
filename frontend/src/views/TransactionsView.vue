@@ -124,23 +124,29 @@ watch([filters, page], loadData, { deep: true })
               class="pl-9"
             />
           </div>
-          <Select v-model="filters.category">
+          <Select
+            :model-value="filters.category ?? ''"
+            @update:model-value="filters.category = $event === '' ? undefined : Number($event)"
+          >
             <SelectTrigger>
               <SelectValue placeholder="Tutte le categorie" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem :value="undefined">Tutte le categorie</SelectItem>
-              <SelectItem v-for="cat in categories" :key="cat.id" :value="cat.id">
+              <SelectItem value="">Tutte le categorie</SelectItem>
+              <SelectItem v-for="cat in categories" :key="cat.id" :value="String(cat.id)">
                 {{ cat.name }}
               </SelectItem>
             </SelectContent>
           </Select>
-          <Select v-model="filters.sign">
+          <Select
+            :model-value="filters.sign ?? ''"
+            @update:model-value="filters.sign = ($event || undefined) as 'expense' | 'income' | undefined"
+          >
             <SelectTrigger>
               <SelectValue placeholder="Tutti i tipi" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem :value="undefined">Tutti i tipi</SelectItem>
+              <SelectItem value="">Tutti i tipi</SelectItem>
               <SelectItem value="expense">Solo spese</SelectItem>
               <SelectItem value="income">Solo entrate</SelectItem>
             </SelectContent>
