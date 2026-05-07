@@ -19,7 +19,7 @@ from apps.utils import strip_markdown
 # Configuration constants loaded from Django settings with sensible defaults.
 # These control the AI gateway endpoint, authentication, model selection, and timeout.
 AI_GATEWAY_URL = getattr(
-    settings, "AI_GATEWAY_URL", "https://gateway.ai.vercel.com/v1/chat/completions"
+    settings, "AI_GATEWAY_URL", "https://ai-gateway.vercel.sh/v1/chat/completions"
 )
 AI_GATEWAY_KEY = getattr(settings, "AI_GATEWAY_KEY", "")
 AI_GATEWAY_MODEL = getattr(

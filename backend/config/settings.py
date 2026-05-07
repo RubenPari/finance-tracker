@@ -188,7 +188,7 @@ CELERY_TIMEZONE = 'Europe/Rome'
 # AI Gateway configuration for transaction suggestions
 # ---------------------------------------------------------------------------
 AI_GATEWAY_URL = os.environ.get(
-    'AI_GATEWAY_URL', 'https://gateway.ai.vercel.com/v1/chat/completions'
+    'AI_GATEWAY_URL', 'https://ai-gateway.vercel.sh/v1/chat/completions'
 )
 AI_GATEWAY_KEY = os.environ.get('AI_GATEWAY_KEY', '')
 if not AI_GATEWAY_KEY:
