@@ -1,3 +1,9 @@
+"""Root URL configuration for the Finance Tracker API.
+
+Routes all API endpoints under the `/api/` prefix to their
+respective app-level URL configurations. The Django admin
+interface is available at `/admin/`.
+"""
 from django.contrib import admin
 from django.urls import path, include
 
