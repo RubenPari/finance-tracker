@@ -1,4 +1,16 @@
 <script setup lang="ts">
+/**
+ * CategoriesView - Manages expense categories and auto-categorization rules.
+ *
+ * Displays three sections:
+ * 1. System categories (built-in, non-deletable)
+ * 2. Custom categories (user-created, deletable)
+ * 3. Auto-categorization rules (keyword-to-category mappings for automatic classification)
+ *
+ * Supports creating custom categories with name and color,
+ * creating rules that map description keywords to categories,
+ * and deleting custom categories or rules with confirmation dialogs.
+ */
 import { ref, onMounted } from 'vue'
 import { categoriesApi } from '@/api'
 import type { Category, CategoryRule } from '@/types'
@@ -45,18 +57,31 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Plus, Trash2, ArrowRight, Tag } from 'lucide-vue-next'
 
+/** Full list of categories (both system and custom) */
 const categories = ref<Category[]>([])
+/** List of auto-categorization rules mapping keywords to categories */
 const rules = ref<CategoryRule[]>([])
+/** Loading state for categories and rules */
 const loading = ref(true)
 
+/** Controls visibility of the "create custom category" dialog */
 const showCreateCategory = ref(false)
+/** Name input for the new custom category */
 const newCatName = ref('')
+/** Color picker value for the new custom category (defaults to blue) */
 const newCatColor = ref('#3B82F6')
 
+/** Controls visibility of the "create auto-categorization rule" dialog */
 const showCreateRule = ref(false)
+/** Keyword input for the new rule (matched against transaction descriptions) */
 const newRuleKeyword = ref('')
+/** Selected category ID that the new rule will assign to matching transactions */
 const newRuleCategory = ref<number | null>(null)
 
+/**
+ * Fetches all categories and auto-categorization rules in parallel.
+ * Called on mount and after any create/delete operation to refresh the view.
+ */
 async function loadData() {
   loading.value = true
   try {
@@ -68,6 +93,11 @@ async function loadData() {
   }
 }
 
+/**
+ * Creates a new custom category with the provided name and color.
+ * Validates that the name is not empty, then calls the API and reloads data.
+ * Closes the dialog and resets the form on success.
+ */
 async function createCategory() {
   if (!newCatName.value.trim()) return
   await categoriesApi.create({ name: newCatName.value.trim(), color: newCatColor.value })
@@ -76,6 +106,11 @@ async function createCategory() {
   await loadData()
 }
 
+/**
+ * Creates a new auto-categorization rule with the given keyword and target category.
+ * Validates that both keyword and category are provided, assigns priority 0,
+ * then calls the API and reloads data. Closes the dialog and resets the form on success.
+ */
 async function createRule() {
   if (!newRuleKeyword.value.trim() || !newRuleCategory.value) return
   await categoriesApi.createRule({
@@ -89,16 +124,24 @@ async function createRule() {
   await loadData()
 }
 
+/**
+ * Deletes a custom category by ID. The backend reassigns associated transactions to "Altro" (Other).
+ * Reloads all data after deletion to reflect the change.
+ */
 async function deleteCategory(id: number) {
   await categoriesApi.delete(id)
   await loadData()
 }
 
+/**
+ * Deletes an auto-categorization rule by ID and reloads all data.
+ */
 async function deleteRule(id: number) {
   await categoriesApi.deleteRule(id)
   await loadData()
 }
 
+// Fetch categories and rules on initial mount
 onMounted(loadData)
 </script>
 

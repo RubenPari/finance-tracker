@@ -1,4 +1,17 @@
 <script setup lang="ts">
+/**
+ * DashboardView - Main dashboard displaying financial overview with charts and summaries.
+ *
+ * Fetches and displays:
+ * - Summary cards (total expenses, total income, net balance)
+ * - Donut chart of expenses by category
+ * - Top 5 merchants by spending
+ * - 12-month trend bar chart
+ * - Category comparison with previous period
+ *
+ * The time period (month/quarter/year) is selectable via a toggle group.
+ * Data is fetched in parallel on mount and whenever the period changes.
+ */
 import { ref, onMounted, watch } from 'vue'
 import { statsApi } from '@/api'
 import type {
@@ -24,14 +37,26 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TrendingUp, TrendingDown, ArrowLeftRight, Wallet } from 'lucide-vue-next'
 
+/** Selected time period for stats filtering: 'month' | 'quarter' | 'year' */
 const period = ref('month')
+/** Overall summary: total expenses, income, net balance, transaction count */
 const summary = ref<StatsSummary | null>(null)
+/** Expense breakdown by category for the donut chart */
 const byCategory = ref<CategoryStats[]>([])
+/** 12-month spending trend data for the bar chart */
 const monthly = ref<MonthlyTrend[]>([])
+/** Top 5 merchants by total spending */
 const topMerchants = ref<TopMerchant[]>([])
+/** Category spending comparison with the previous period (includes change percentage) */
 const comparison = ref<CategoryComparison[]>([])
+/** Loading state for the initial fetch and period changes */
 const loading = ref(true)
 
+/**
+ * Fetches all dashboard data in parallel from the stats API.
+ * Uses the currently selected `period` for period-scoped endpoints.
+ * The monthly trend always returns 12 months regardless of period.
+ */
 async function loadData() {
   loading.value = true
   try {
@@ -53,9 +78,12 @@ async function loadData() {
   }
 }
 
+// Fetch data on initial mount
 onMounted(loadData)
+// Re-fetch whenever the selected period changes
 watch(period, loadData)
 
+/** Options for the period toggle group UI */
 const periodOptions = [
   { value: 'month', label: 'Mese' },
   { value: 'quarter', label: 'Trimestre' },

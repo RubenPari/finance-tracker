@@ -1,4 +1,15 @@
 <script setup lang="ts">
+/**
+ * RegisterView - User registration page.
+ *
+ * Displays a registration form with first name, last name, email, password, and password confirmation.
+ * On submit, calls the auth store's register method and redirects to the dashboard on success.
+ *
+ * Error handling:
+ * - `error` displays a general error message (e.g., backend `detail` field or generic failure)
+ * - `fieldErrors` maps field names to arrays of validation error messages from the backend
+ *   (e.g., password mismatch, duplicate email, weak password)
+ */
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
@@ -11,6 +22,7 @@ import { Button } from '@/components/ui/button'
 const router = useRouter()
 const auth = useAuthStore()
 
+/** Registration form data: email, password, confirmation, and optional name fields */
 const form = ref({
   email: '',
   password: '',
@@ -18,10 +30,21 @@ const form = ref({
   first_name: '',
   last_name: '',
 })
+/** General error message shown for non-field-specific errors (e.g., server detail message) */
 const error = ref('')
+/** Per-field validation errors from the backend, keyed by field name with arrays of messages */
 const fieldErrors = ref<Record<string, string[]>>({})
+/** Loading state to disable the submit button during the API call */
 const loading = ref(false)
 
+/**
+ * Handles form submission.
+ * Calls the auth store register method with the form data.
+ * On success, navigates to the dashboard. On failure, parses the error response:
+ * - Extracts field-specific errors (password_confirm, email, password) into fieldErrors for inline display
+ * - Uses the backend `detail` message if available, otherwise shows a generic failure message
+ * The loading state prevents double submissions and provides visual feedback.
+ */
 async function onSubmit() {
   error.value = ''
   fieldErrors.value = {}

@@ -1,4 +1,17 @@
 <script setup lang="ts">
+/**
+ * ImportView - Handles XLSX file import for Revolut transaction data.
+ *
+ * Features:
+ * - Drag-and-drop and click-to-select file upload (XLSX only)
+ * - File validation (must be .xlsx format)
+ * - Polling for async processing status (PROCESSING -> COMPLETED/FAILED)
+ * - Import result summary (imported, skipped/duplicates, discarded, errors)
+ * - Import history with collapsible batch details
+ * - Paginated transaction list within each expanded batch
+ *
+ * Cleanup: stops the polling timer on component unmount to prevent memory leaks.
+ */
 import { ref, onMounted, onUnmounted } from 'vue'
 import { transactionsApi } from '@/api'
 import type { ImportBatch, Transaction } from '@/types'
@@ -23,32 +36,56 @@ import {
 } from '@/components/ui/collapsible'
 import { Upload, CheckCircle2, XCircle, Loader2, ChevronDown, FileSpreadsheet } from 'lucide-vue-next'
 
+/** Reference to the hidden file input element for click-to-select uploads */
 const fileInput = ref<HTMLInputElement | null>(null)
+/** Whether a file is currently being dragged over the drop zone */
 const dragging = ref(false)
+/** Whether a file upload is in progress (API call active) */
 const uploading = ref(false)
+/** Result of the most recent import (includes status, filename, counts) */
 const result = ref<ImportBatch | null>(null)
+/** Error message from a failed upload or validation failure */
 const error = ref('')
+/** List of past import batches for the history section */
 const history = ref<ImportBatch[]>([])
+/** ID of the currently expanded batch in the history view, or null if none */
 const expandedBatch = ref<number | null>(null)
+/** Whether the collapsible batch details section is open */
 const isExpanded = ref(false)
+/** Paginated transactions for the currently expanded batch */
 const batchTransactions = ref<Transaction[]>([])
+/** Loading state for fetching transactions of an expanded batch */
 const batchTransactionLoading = ref(false)
+/** Current page within the expanded batch transaction list */
 const batchTransactionPage = ref(1)
+/** Total count of transactions in the expanded batch */
 const batchTransactionTotal = ref(0)
+/** Whether there is a next page of transactions in the expanded batch */
 const batchTransactionHasNext = ref(false)
+/** Whether there is a previous page of transactions in the expanded batch */
 const batchTransactionHasPrev = ref(false)
 
+/** Interval timer reference for polling the import processing status */
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
+/**
+ * Handles the dragover event on the drop zone.
+ * Prevents default browser behavior (which would open the file) and sets dragging state.
+ */
 function onDragOver(e: DragEvent) {
   e.preventDefault()
   dragging.value = true
 }
 
+/** Clears the dragging state when the cursor leaves the drop zone. */
 function onDragLeave() {
   dragging.value = false
 }
 
+/**
+ * Handles file drop on the drop zone.
+ * Extracts the first dropped file and passes it to the upload function.
+ */
 async function onDrop(e: DragEvent) {
   e.preventDefault()
   dragging.value = false
@@ -56,6 +93,11 @@ async function onDrop(e: DragEvent) {
   if (file) await upload(file)
 }
 
+/**
+ * Handles file selection from the hidden file input.
+ * Extracts the selected file, passes it to upload, then resets the input value
+ * so the same file can be re-selected if needed.
+ */
 async function onFileSelect(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
@@ -63,6 +105,12 @@ async function onFileSelect(e: Event) {
   input.value = ''
 }
 
+/**
+ * Uploads a file to the import API.
+ * Validates the file extension (.xlsx only), sends the file, and handles the response.
+ * If the import status is 'PROCESSING', starts polling for completion.
+ * On error, extracts the error message from the API response or shows a generic message.
+ */
 async function upload(file: File) {
   error.value = ''
   result.value = null
@@ -77,6 +125,7 @@ async function upload(file: File) {
     const { data } = await transactionsApi.import(file)
     result.value = data
 
+    // If the backend is processing asynchronously, start polling for status updates
     if (data.status === 'PROCESSING') {
       startPolling(data.id)
     }
@@ -88,6 +137,10 @@ async function upload(file: File) {
   }
 }
 
+/**
+ * Starts polling the import detail API every 1.5 seconds to track processing status.
+ * Stops polling when the status becomes 'COMPLETED' or 'FAILED' and reloads the import history.
+ */
 async function startPolling(batchId: number) {
   pollTimer = setInterval(async () => {
     try {
@@ -103,6 +156,7 @@ async function startPolling(batchId: number) {
   }, 1500)
 }
 
+/** Clears the polling interval timer and nulls out the reference. */
 function stopPolling() {
   if (pollTimer) {
     clearInterval(pollTimer)
@@ -110,6 +164,10 @@ function stopPolling() {
   }
 }
 
+/**
+ * Fetches the import history (list of past import batches) from the API.
+ * Silently ignores errors so the history section simply remains empty.
+ */
 async function loadHistory() {
   try {
     const { data } = await transactionsApi.importHistory()
@@ -117,6 +175,11 @@ async function loadHistory() {
   } catch {}
 }
 
+/**
+ * Toggles the expansion of a batch in the import history.
+ * If already expanded, collapses it and clears the transaction list.
+ * If collapsed, expands it and loads the first page of transactions for that batch.
+ */
 async function toggleBatch(batch: ImportBatch) {
   if (expandedBatch.value === batch.id) {
     expandedBatch.value = null
@@ -131,6 +194,10 @@ async function toggleBatch(batch: ImportBatch) {
   await loadBatchTransactions(batch.id, 1)
 }
 
+/**
+ * Fetches a paginated list of transactions for a specific import batch.
+ * Updates the reactive state with the results, total count, and pagination metadata.
+ */
 async function loadBatchTransactions(batchId: number, page: number) {
   batchTransactionLoading.value = true
   try {
@@ -147,6 +214,10 @@ async function loadBatchTransactions(batchId: number, page: number) {
   }
 }
 
+/**
+ * Maps an import batch status string to a Badge variant for visual display.
+ * PENDING -> secondary, PROCESSING/COMPLETED -> default, FAILED -> destructive.
+ */
 function getStatusBadgeVariant(status: string): 'secondary' | 'default' | 'destructive' {
   const map: Record<string, 'secondary' | 'default' | 'destructive'> = {
     PENDING: 'secondary',
@@ -157,6 +228,7 @@ function getStatusBadgeVariant(status: string): 'secondary' | 'default' | 'destr
   return map[status] || 'secondary'
 }
 
+/** Maps an import batch status string to its Italian display label. */
 function getStatusLabel(status: string): string {
   const map: Record<string, string> = {
     PENDING: 'In attesa',
@@ -167,7 +239,9 @@ function getStatusLabel(status: string): string {
   return map[status] || status
 }
 
+// Load import history on component mount
 onMounted(loadHistory)
+// Clean up the polling interval when the component is unmounted to prevent memory leaks
 onUnmounted(stopPolling)
 </script>
 

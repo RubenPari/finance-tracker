@@ -1,4 +1,16 @@
 <script setup lang="ts">
+/**
+ * TransactionsView - Displays a paginated, filterable list of transactions.
+ *
+ * Features:
+ * - Filter by search text, category, and sign (income/expense)
+ * - Inline editing of category and notes per transaction
+ * - Deletion with confirmation dialog
+ * - Pagination (50 items per page)
+ *
+ * Loads transactions and categories in parallel on mount.
+ * Re-fetches whenever filters or page number change (deep watch on filters).
+ */
 import { ref, onMounted, watch } from 'vue'
 import { transactionsApi, categoriesApi } from '@/api'
 import type { Transaction, Category } from '@/types'
@@ -36,13 +48,20 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Search, Pencil, Trash2, X, RotateCw } from 'lucide-vue-next'
 
+/** List of transactions for the current page */
 const transactions = ref<Transaction[]>([])
+/** All categories, used for filter dropdown and inline edit select */
 const categories = ref<Category[]>([])
+/** Total number of transactions matching the current filters */
 const totalCount = ref(0)
+/** Loading state for data fetching */
 const loading = ref(true)
+/** Current page number (1-indexed) */
 const page = ref(1)
+/** Total number of pages, calculated from totalCount / 50 items per page */
 const totalPages = ref(1)
 
+/** Active filters applied to the transaction list API call */
 const filters = ref({
   search: '',
   category: undefined as number | undefined,
@@ -50,10 +69,17 @@ const filters = ref({
   ordering: '-completed_at',
 })
 
+/** ID of the transaction currently being edited inline, or null if none */
 const editingId = ref<number | null>(null)
+/** Selected category ID for the inline edit form */
 const editCategory = ref<number | null>(null)
+/** Notes text for the inline edit form */
 const editNotes = ref('')
 
+/**
+ * Fetches the paginated, filtered transaction list and the full category list in parallel.
+ * Calculates total pages from the response count (50 items per page).
+ */
 async function loadData() {
   loading.value = true
   try {
@@ -70,6 +96,7 @@ async function loadData() {
   }
 }
 
+/** Resets all filters to defaults and returns to page 1. */
 function resetFilters() {
   filters.value.search = ''
   filters.value.category = undefined
@@ -77,12 +104,18 @@ function resetFilters() {
   page.value = 1
 }
 
+/** Enters inline edit mode for a transaction, populating the edit form with its current values. */
 function startEdit(tx: Transaction) {
   editingId.value = tx.id
   editCategory.value = tx.category
   editNotes.value = tx.notes
 }
 
+/**
+ * Saves the edited category and notes to the backend via the transactions API.
+ * On success, mutates the transaction object in-place using Object.assign to update the reactive array,
+ * then exits edit mode.
+ */
 async function saveEdit(tx: Transaction) {
   await transactionsApi.update(tx.id, {
     category: editCategory.value,
@@ -92,16 +125,23 @@ async function saveEdit(tx: Transaction) {
   editingId.value = null
 }
 
+/** Exits inline edit mode without saving changes. */
 function cancelEdit() {
   editingId.value = null
 }
 
+/**
+ * Deletes a transaction by ID from the backend.
+ * On success, removes it from the local reactive array (no re-fetch needed).
+ */
 async function deleteTx(id: number) {
   await transactionsApi.delete(id)
   transactions.value = transactions.value.filter((t) => t.id !== id)
 }
 
+// Fetch data on initial mount
 onMounted(loadData)
+// Re-fetch whenever filters or page change; deep: true ensures nested filter changes trigger the watch
 watch([filters, page], loadData, { deep: true })
 </script>
 

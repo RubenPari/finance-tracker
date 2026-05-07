@@ -1,4 +1,11 @@
 <script setup lang="ts">
+/**
+ * LoginView - User authentication page.
+ *
+ * Displays a login form with email and password fields.
+ * On submit, calls the auth store's login method and redirects to the dashboard on success.
+ * Shows an error message if authentication fails.
+ */
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
@@ -11,11 +18,21 @@ import { Button } from '@/components/ui/button'
 const router = useRouter()
 const auth = useAuthStore()
 
+/** Email input value from the form */
 const email = ref('')
+/** Password input value from the form */
 const password = ref('')
+/** Error message shown when login fails */
 const error = ref('')
+/** Loading state to disable the submit button during the API call */
 const loading = ref(false)
 
+/**
+ * Handles form submission.
+ * Calls the auth store login method with the provided email and password.
+ * On success, navigates to the dashboard. On failure, displays a generic error message.
+ * The loading state prevents double submissions and provides visual feedback.
+ */
 async function onSubmit() {
   error.value = ''
   loading.value = true

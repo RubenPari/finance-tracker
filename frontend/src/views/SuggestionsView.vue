@@ -1,4 +1,17 @@
 <script setup lang="ts">
+/**
+ * SuggestionsView - Displays AI-generated transaction suggestions and insights.
+ *
+ * Fetches a list of suggestions from the backend on mount. Each suggestion has a type
+ * (biggest_increase, subscription, spending_peaks, outlier) that determines:
+ * - The icon displayed next to the suggestion
+ * - The left border color of the card
+ *
+ * Some suggestion types (e.g., 'biggest_increase') include additional metadata
+ * like `change_pct` displayed as a badge.
+ *
+ * Users can manually refresh suggestions with the "Aggiorna" button.
+ */
 import { ref, onMounted } from 'vue'
 import { suggestionsApi } from '@/api'
 import type { Suggestion } from '@/types'
@@ -8,9 +21,15 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TrendingUp, RotateCw, Zap, AlertTriangle, Lightbulb, RefreshCw } from 'lucide-vue-next'
 
+/** List of AI-generated suggestions fetched from the backend */
 const suggestions = ref<Suggestion[]>([])
+/** Loading state for the suggestions fetch */
 const loading = ref(true)
 
+/**
+ * Fetches all suggestions from the API. Sets loading to true before the request
+ * and false after it completes (success or failure).
+ */
 async function loadSuggestions() {
   loading.value = true
   try {
@@ -21,6 +40,10 @@ async function loadSuggestions() {
   }
 }
 
+/**
+ * Returns the appropriate icon component for a given suggestion type.
+ * Maps each known type to a distinct Lucide icon, falling back to Lightbulb for unknown types.
+ */
 function typeIcon(type: string) {
   const icons: Record<string, typeof TrendingUp> = {
     biggest_increase: TrendingUp,
@@ -31,6 +54,10 @@ function typeIcon(type: string) {
   return icons[type] || Lightbulb
 }
 
+/**
+ * Returns the CSS class for the left border color based on suggestion type.
+ * Each type maps to a different Tailwind color utility for visual differentiation.
+ */
 function typeBorderClass(type: string): string {
   const map: Record<string, string> = {
     biggest_increase: 'border-l-income',
@@ -41,6 +68,7 @@ function typeBorderClass(type: string): string {
   return map[type] || 'border-l-primary'
 }
 
+// Fetch suggestions on initial mount
 onMounted(loadSuggestions)
 </script>
 

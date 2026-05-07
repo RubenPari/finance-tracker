@@ -1,4 +1,17 @@
 <script setup lang="ts">
+/**
+ * BudgetsView - Displays and manages monthly spending budgets per category.
+ *
+ * Features:
+ * - Month/year navigation with prev/next buttons
+ * - Budget cards showing spent vs. limit with progress bars
+ * - Color-coded progress states: default (<80%), warning (80-99%), destructive (100%+)
+ * - Create new budgets via dialog (category + amount limit)
+ * - Delete budgets with confirmation dialog
+ *
+ * Fetches budgets for the selected year/month and all categories in parallel on mount.
+ * Re-fetches whenever year or month changes.
+ */
 import { ref, onMounted, watch } from 'vue'
 import { budgetsApi, categoriesApi } from '@/api'
 import type { Budget, Category } from '@/types'
@@ -39,18 +52,29 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Plus, ChevronLeft, ChevronRight, Trash2 } from 'lucide-vue-next'
 
+/** List of budgets for the currently selected month/year */
 const budgets = ref<Budget[]>([])
+/** All categories, used for the create budget dialog dropdown */
 const categories = ref<Category[]>([])
+/** Loading state for data fetching */
 const loading = ref(true)
+/** Currently selected year for budget viewing */
 const year = ref(new Date().getFullYear())
+/** Currently selected month (1-12) for budget viewing */
 const month = ref(new Date().getMonth() + 1)
 
+/** Controls visibility of the "create new budget" dialog */
 const showCreate = ref(false)
+/** Form data for the new budget: target category ID and spending limit amount */
 const newBudget = ref({
   category: null as number | null,
   amount_limit: 0,
 })
 
+/**
+ * Fetches budgets for the current year/month and the full category list in parallel.
+ * Budgets are scoped to the selected month and year via query parameters.
+ */
 async function loadData() {
   loading.value = true
   try {
@@ -65,6 +89,11 @@ async function loadData() {
   }
 }
 
+/**
+ * Creates a new budget for the current month/year.
+ * Validates that a category is selected and the amount limit is positive,
+ * then calls the API and reloads data. Closes the dialog and resets the form on success.
+ */
 async function createBudget() {
   if (!newBudget.value.category || newBudget.value.amount_limit <= 0) return
   await budgetsApi.create({
@@ -78,16 +107,21 @@ async function createBudget() {
   await loadData()
 }
 
+/**
+ * Deletes a budget by ID and reloads all data to reflect the removal.
+ */
 async function deleteBudget(id: number) {
   await budgetsApi.delete(id)
   await loadData()
 }
 
+/** Italian month names for the month navigation header */
 const months = [
   'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
   'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre',
 ]
 
+/** Navigates to the previous month, wrapping from January to December of the previous year. */
 function prevMonth() {
   if (month.value === 1) {
     month.value = 12
@@ -97,6 +131,7 @@ function prevMonth() {
   }
 }
 
+/** Navigates to the next month, wrapping from December to January of the next year. */
 function nextMonth() {
   if (month.value === 12) {
     month.value = 1
@@ -106,13 +141,21 @@ function nextMonth() {
   }
 }
 
+/**
+ * Returns the progress bar variant based on the percentage of budget used.
+ * - 'destructive' at 100% or more (budget exceeded)
+ * - 'warning' at 80% or more (approaching limit)
+ * - 'default' below 80%
+ */
 function getProgressVariant(pct: number): 'default' | 'warning' | 'destructive' {
   if (pct >= 100) return 'destructive'
   if (pct >= 80) return 'warning'
   return 'default'
 }
 
+// Fetch data on initial mount
 onMounted(loadData)
+// Re-fetch whenever the selected year or month changes
 watch([year, month], loadData)
 </script>
 
