@@ -65,7 +65,7 @@ class TransactionListView(ListAPIView):
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = TransactionFilter
     search_fields = ["description"]
-    ordering_fields = ["completed_at", "amount", "description"]
+    ordering_fields = ["completed_at", "amount", "description", "category__name"]
     ordering = ["-completed_at"]
 
     def get_queryset(self):
@@ -198,7 +198,7 @@ class ImportBatchTransactionsView(ListAPIView):
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = TransactionFilter
     search_fields = ["description"]
-    ordering_fields = ["completed_at", "amount", "description"]
+    ordering_fields = ["completed_at", "amount", "description", "category__name"]
     ordering = ["-completed_at"]
 
     def get_queryset(self):
