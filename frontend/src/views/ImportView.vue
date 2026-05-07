@@ -3,6 +3,25 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { transactionsApi } from '@/api'
 import type { ImportBatch, Transaction } from '@/types'
 import { formatDateTime, formatDate, formatCurrency } from '@/utils/formatters'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import { Upload, CheckCircle2, XCircle, Loader2, ChevronDown, FileSpreadsheet } from 'lucide-vue-next'
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const dragging = ref(false)
@@ -11,6 +30,7 @@ const result = ref<ImportBatch | null>(null)
 const error = ref('')
 const history = ref<ImportBatch[]>([])
 const expandedBatch = ref<number | null>(null)
+const isExpanded = ref(false)
 const batchTransactions = ref<Transaction[]>([])
 const batchTransactionLoading = ref(false)
 const batchTransactionPage = ref(1)
@@ -100,11 +120,13 @@ async function loadHistory() {
 async function toggleBatch(batch: ImportBatch) {
   if (expandedBatch.value === batch.id) {
     expandedBatch.value = null
+    isExpanded.value = false
     batchTransactions.value = []
     return
   }
 
   expandedBatch.value = batch.id
+  isExpanded.value = true
   batchTransactionPage.value = 1
   await loadBatchTransactions(batch.id, 1)
 }
@@ -125,14 +147,24 @@ async function loadBatchTransactions(batchId: number, page: number) {
   }
 }
 
-function getStatusBadge(status: string) {
-  const map: Record<string, { class: string; label: string }> = {
-    PENDING: { class: 'bg-gray-100 text-gray-600', label: 'In attesa' },
-    PROCESSING: { class: 'bg-blue-100 text-blue-600', label: 'In elaborazione' },
-    COMPLETED: { class: 'bg-green-100 text-green-600', label: 'Completato' },
-    FAILED: { class: 'bg-red-100 text-red-600', label: 'Fallito' },
+function getStatusBadgeVariant(status: string): 'secondary' | 'default' | 'destructive' {
+  const map: Record<string, 'secondary' | 'default' | 'destructive'> = {
+    PENDING: 'secondary',
+    PROCESSING: 'default',
+    COMPLETED: 'default',
+    FAILED: 'destructive',
   }
-  return map[status] || map.PENDING
+  return map[status] || 'secondary'
+}
+
+function getStatusLabel(status: string): string {
+  const map: Record<string, string> = {
+    PENDING: 'In attesa',
+    PROCESSING: 'In elaborazione',
+    COMPLETED: 'Completato',
+    FAILED: 'Fallito',
+  }
+  return map[status] || status
 }
 
 onMounted(loadHistory)
@@ -141,196 +173,216 @@ onUnmounted(stopPolling)
 
 <template>
   <div>
-    <h1 class="mb-6 text-2xl font-bold text-gray-900">Importa XLSX</h1>
+    <h1 class="mb-6 text-2xl font-bold tracking-tight">Importa XLSX</h1>
 
-    <form v-if="!uploading && !result" class="card">
-      <div
-        class="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-12 transition-colors"
-        :class="dragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300'"
-        @dragover="onDragOver"
-        @dragleave="onDragLeave"
-        @drop="onDrop"
-        @click="fileInput?.click()"
-      >
-        <span class="mb-3 text-4xl">📄</span>
-        <p class="text-lg font-medium text-gray-700">Trascina il file XLSX di Revolut qui</p>
-        <p class="mt-1 text-sm text-gray-400">oppure clicca per selezionare</p>
-        <input ref="fileInput" type="file" accept=".xlsx" class="hidden" @change="onFileSelect" />
-      </div>
-      <div v-if="error" class="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
-        {{ error }}
-      </div>
-    </form>
+    <template v-if="!uploading && !result">
+      <Card>
+        <CardContent class="pt-6">
+          <div
+            class="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 p-12 transition-colors hover:border-primary hover:bg-muted/50"
+            :class="{ 'border-primary bg-muted/50': dragging }"
+            @dragover="onDragOver"
+            @dragleave="onDragLeave"
+            @drop="onDrop"
+            @click="fileInput?.click()"
+          >
+            <Upload class="mb-3 size-10 text-muted-foreground" />
+            <p class="text-lg font-medium">Trascina il file XLSX di Revolut qui</p>
+            <p class="mt-1 text-sm text-muted-foreground">oppure clicca per selezionare</p>
+            <input ref="fileInput" type="file" accept=".xlsx" class="hidden" @change="onFileSelect" />
+          </div>
+          <div
+            v-if="error"
+            class="mt-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+          >
+            {{ error }}
+          </div>
+        </CardContent>
+      </Card>
+    </template>
 
-    <div v-if="uploading && result" class="card text-center">
-      <div
-        class="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"
-      />
-      <p class="font-medium text-gray-700">Elaborazione in corso...</p>
-      <p class="mt-1 text-sm text-gray-400">Importazione di {{ result.filename }}</p>
-    </div>
+    <template v-if="uploading && result">
+      <Card>
+        <CardContent class="flex flex-col items-center py-12">
+          <Loader2 class="mb-4 size-10 animate-spin text-primary" />
+          <p class="font-medium">Elaborazione in corso...</p>
+          <p class="mt-1 text-sm text-muted-foreground">Importazione di {{ result.filename }}</p>
+        </CardContent>
+      </Card>
+    </template>
 
-    <div v-if="result && result.status === 'COMPLETED'" class="card">
-      <div class="mb-4 text-center">
-        <span class="text-4xl">✅</span>
-        <h2 class="mt-2 text-xl font-semibold text-gray-900">Import completato!</h2>
-      </div>
+    <template v-if="result && result.status === 'COMPLETED'">
+      <Card>
+        <CardContent class="pt-6">
+          <div class="mb-6 text-center">
+            <CheckCircle2 class="mx-auto size-10 text-income" />
+            <h2 class="mt-2 text-xl font-semibold">Import completato!</h2>
+          </div>
 
-      <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div class="rounded-lg bg-green-50 p-4 text-center">
-          <p class="text-2xl font-bold text-green-700">{{ result.imported_count }}</p>
-          <p class="text-xs text-green-600">Importate</p>
-        </div>
-        <div class="rounded-lg bg-yellow-50 p-4 text-center">
-          <p class="text-2xl font-bold text-yellow-700">{{ result.skipped_count }}</p>
-          <p class="text-xs text-yellow-600">Duplicate</p>
-        </div>
-        <div class="rounded-lg bg-gray-100 p-4 text-center">
-          <p class="text-2xl font-bold text-gray-700">
-            {{
-              result.total_rows - result.imported_count - result.skipped_count - result.error_count
-            }}
-          </p>
-          <p class="text-xs text-gray-500">Scartate</p>
-        </div>
-        <div class="rounded-lg bg-red-50 p-4 text-center">
-          <p class="text-2xl font-bold text-red-700">{{ result.error_count }}</p>
-          <p class="text-xs text-red-600">Errori</p>
-        </div>
-      </div>
+          <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <Card class="border-l-4 border-l-income">
+              <CardContent class="pt-4 pb-4 text-center">
+                <p class="text-2xl font-bold font-mono tabular-nums text-income">{{ result.imported_count }}</p>
+                <p class="text-xs text-muted-foreground">Importate</p>
+              </CardContent>
+            </Card>
+            <Card class="border-l-4 border-l-warning">
+              <CardContent class="pt-4 pb-4 text-center">
+                <p class="text-2xl font-bold font-mono tabular-nums text-warning">{{ result.skipped_count }}</p>
+                <p class="text-xs text-muted-foreground">Duplicate</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent class="pt-4 pb-4 text-center">
+                <p class="text-2xl font-bold font-mono tabular-nums text-muted-foreground">
+                  {{ result.total_rows - result.imported_count - result.skipped_count - result.error_count }}
+                </p>
+                <p class="text-xs text-muted-foreground">Scartate</p>
+              </CardContent>
+            </Card>
+            <Card v-if="result.error_count" class="border-l-4 border-l-destructive">
+              <CardContent class="pt-4 pb-4 text-center">
+                <p class="text-2xl font-bold font-mono tabular-nums text-destructive">{{ result.error_count }}</p>
+                <p class="text-xs text-muted-foreground">Errori</p>
+              </CardContent>
+            </Card>
+          </div>
 
-      <div class="mt-6 flex justify-center gap-3">
-        <RouterLink to="/transactions" class="btn-primary">Vedi transazioni</RouterLink>
-        <button class="btn-secondary" @click="result = null">Importa un altro file</button>
-      </div>
-    </div>
+          <div class="mt-6 flex justify-center gap-3">
+            <RouterLink to="/transactions">
+              <Button>Vedi transazioni</Button>
+            </RouterLink>
+            <Button variant="outline" @click="result = null">Importa un altro file</Button>
+          </div>
+        </CardContent>
+      </Card>
+    </template>
 
-    <div v-if="result && result.status === 'FAILED'" class="card text-center">
-      <span class="text-4xl">❌</span>
-      <h2 class="mt-2 text-xl font-semibold text-red-600">Import fallito</h2>
-      <p class="mt-1 text-sm text-gray-500">Il file potrebbe non essere nel formato atteso.</p>
-      <button class="btn-secondary mt-4" @click="result = null">Riprova</button>
-    </div>
+    <template v-if="result && result.status === 'FAILED'">
+      <Card>
+        <CardContent class="flex flex-col items-center py-12">
+          <XCircle class="mb-2 size-10 text-destructive" />
+          <h2 class="text-xl font-semibold text-destructive">Import fallito</h2>
+          <p class="mt-1 text-sm text-muted-foreground">Il file potrebbe non essere nel formato atteso.</p>
+          <Button variant="outline" class="mt-4" @click="result = null">Riprova</Button>
+        </CardContent>
+      </Card>
+    </template>
 
     <div v-if="history.length" class="mt-8">
-      <h2 class="mb-4 text-lg font-semibold text-gray-900">Storico import</h2>
+      <h2 class="mb-4 text-lg font-semibold">Storico import</h2>
       <div class="space-y-3">
-        <div
-          v-for="batch in history"
-          :key="batch.id"
-          class="card overflow-hidden"
-        >
-          <button
-            class="flex w-full items-center justify-between px-4 py-3 transition-colors hover:bg-gray-50"
-            @click="toggleBatch(batch)"
-          >
-            <div class="flex items-center gap-3">
-              <span class="text-lg">
-                {{ expandedBatch === batch.id ? '▾' : '▸' }}
-              </span>
-              <div>
-                <p class="text-sm font-medium text-gray-900">{{ batch.filename }}</p>
-                <p class="text-xs text-gray-400">{{ formatDateTime(batch.imported_at) }}</p>
-              </div>
-            </div>
-            <div class="flex items-center gap-4">
-              <span
-                class="rounded-full px-2 py-1 text-xs font-medium"
-                :class="getStatusBadge(batch.status).class"
+        <Card v-for="batch in history" :key="batch.id">
+          <Collapsible v-model:open="isExpanded" @update:open="toggleBatch(batch)">
+            <CollapsibleTrigger as-child>
+              <button
+                class="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-muted/50"
               >
-                {{ getStatusBadge(batch.status).label }}
-              </span>
-              <div class="flex gap-3 text-xs">
-                <span class="text-green-600">{{ batch.imported_count }} importate</span>
-                <span class="text-yellow-600">{{ batch.skipped_count }} duplicate</span>
-                <span v-if="batch.error_count" class="text-red-600"
-                  >{{ batch.error_count }} errori</span
-                >
-              </div>
-            </div>
-          </button>
-
-          <div v-if="expandedBatch === batch.id" class="border-t border-gray-100">
-            <div v-if="batchTransactionLoading" class="flex justify-center p-8">
-              <div
-                class="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"
-              />
-            </div>
-
-            <div v-else-if="batchTransactions.length === 0" class="p-6 text-center text-sm text-gray-400">
-              Nessuna transazione trovata per questo batch.
-            </div>
-
-            <template v-else>
-              <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm">
-                  <thead class="border-b border-gray-100 bg-gray-50 text-xs uppercase text-gray-500">
-                    <tr>
-                      <th class="px-4 py-3">Data</th>
-                      <th class="px-4 py-3">Descrizione</th>
-                      <th class="px-4 py-3">Categoria</th>
-                      <th class="px-4 py-3">Tipo</th>
-                      <th class="px-4 py-3 text-right">Importo</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-gray-50">
-                    <tr v-for="tx in batchTransactions" :key="tx.id" class="hover:bg-gray-50">
-                      <td class="whitespace-nowrap px-4 py-3 text-gray-500">
-                        {{ formatDate(tx.completed_at) }}
-                      </td>
-                      <td class="px-4 py-3 font-medium text-gray-900">
-                        {{ tx.description }}
-                      </td>
-                      <td class="px-4 py-3">
-                        <span
-                          v-if="tx.category_name"
-                          class="rounded-full px-2 py-0.5 text-xs font-medium"
-                          :style="{
-                            backgroundColor: tx.category_color + '20',
-                            color: tx.category_color,
-                          }"
-                        >
-                          {{ tx.category_name }}
-                        </span>
-                        <span v-else class="text-gray-400">—</span>
-                      </td>
-                      <td class="whitespace-nowrap px-4 py-3 text-gray-500">
-                        {{ tx.transaction_type }}
-                      </td>
-                      <td class="whitespace-nowrap px-4 py-3 text-right font-semibold"
-                        :class="tx.amount < 0 ? 'text-red-600' : 'text-green-600'"
-                      >
-                        {{ formatCurrency(tx.amount) }}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div v-if="batchTransactionHasPrev || batchTransactionHasNext" class="flex items-center justify-between border-t border-gray-100 px-4 py-3">
-                <p class="text-xs text-gray-500">
-                  {{ batchTransactionTotal }} transazioni
-                </p>
-                <div class="flex gap-2">
-                  <button
-                    v-if="batchTransactionHasPrev"
-                    class="btn-secondary text-xs"
-                    @click="loadBatchTransactions(batch.id, batchTransactionPage - 1)"
-                  >
-                    Precedente
-                  </button>
-                  <button
-                    v-if="batchTransactionHasNext"
-                    class="btn-secondary text-xs"
-                    @click="loadBatchTransactions(batch.id, batchTransactionPage + 1)"
-                  >
-                    Successiva
-                  </button>
+                <div class="flex items-center gap-3">
+                  <ChevronDown class="size-4 text-muted-foreground transition-transform" />
+                  <div>
+                    <p class="text-sm font-medium">{{ batch.filename }}</p>
+                    <p class="text-xs text-muted-foreground">{{ formatDateTime(batch.imported_at) }}</p>
+                  </div>
                 </div>
+                <div class="flex items-center gap-4">
+                  <Badge :variant="getStatusBadgeVariant(batch.status)">
+                    {{ getStatusLabel(batch.status) }}
+                  </Badge>
+                  <div class="flex gap-3 text-xs">
+                    <span class="text-income">{{ batch.imported_count }} importate</span>
+                    <span class="text-warning">{{ batch.skipped_count }} duplicate</span>
+                    <span v-if="batch.error_count" class="text-destructive">{{ batch.error_count }} errori</span>
+                  </div>
+                </div>
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div class="border-t px-4">
+                <template v-if="batchTransactionLoading">
+                  <div class="flex justify-center py-8">
+                    <Loader2 class="size-6 animate-spin text-primary" />
+                  </div>
+                </template>
+                <template v-else-if="batchTransactions.length === 0">
+                  <p class="py-6 text-center text-sm text-muted-foreground">
+                    Nessuna transazione trovata per questo batch.
+                  </p>
+                </template>
+                <template v-else>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Data</TableHead>
+                        <TableHead>Descrizione</TableHead>
+                        <TableHead>Categoria</TableHead>
+                        <TableHead>Tipo</TableHead>
+                        <TableHead class="text-right">Importo</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <TableRow v-for="tx in batchTransactions" :key="tx.id">
+                        <TableCell class="whitespace-nowrap text-muted-foreground">
+                          {{ formatDate(tx.completed_at) }}
+                        </TableCell>
+                        <TableCell class="font-medium">{{ tx.description }}</TableCell>
+                        <TableCell>
+                          <Badge
+                            v-if="tx.category_name"
+                            :style="{
+                              backgroundColor: `${tx.category_color}20`,
+                              color: tx.category_color,
+                            }"
+                            variant="secondary"
+                          >
+                            {{ tx.category_name }}
+                          </Badge>
+                          <span v-else class="text-muted-foreground">—</span>
+                        </TableCell>
+                        <TableCell class="whitespace-nowrap text-muted-foreground">
+                          {{ tx.transaction_type }}
+                        </TableCell>
+                        <TableCell
+                          class="whitespace-nowrap text-right font-mono tabular-nums font-medium"
+                          :class="tx.amount < 0 ? 'text-expense' : 'text-income'"
+                        >
+                          {{ formatCurrency(tx.amount) }}
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+
+                  <div
+                    v-if="batchTransactionHasPrev || batchTransactionHasNext"
+                    class="flex items-center justify-between border-t py-3"
+                  >
+                    <p class="text-xs text-muted-foreground">
+                      {{ batchTransactionTotal }} transazioni
+                    </p>
+                    <div class="flex gap-2">
+                      <Button
+                        v-if="batchTransactionHasPrev"
+                        variant="outline"
+                        size="sm"
+                        @click.stop="loadBatchTransactions(batch.id, batchTransactionPage - 1)"
+                      >
+                        Precedente
+                      </Button>
+                      <Button
+                        v-if="batchTransactionHasNext"
+                        variant="outline"
+                        size="sm"
+                        @click.stop="loadBatchTransactions(batch.id, batchTransactionPage + 1)"
+                      >
+                        Successiva
+                      </Button>
+                    </div>
+                  </div>
+                </template>
               </div>
-            </template>
-          </div>
-        </div>
+            </CollapsibleContent>
+          </Collapsible>
+        </Card>
       </div>
     </div>
   </div>
