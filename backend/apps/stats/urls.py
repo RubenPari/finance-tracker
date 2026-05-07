@@ -1,3 +1,17 @@
+"""URL routing for the stats application.
+
+Defines the URL patterns that map to the statistics and analytics API views.
+All routes are prefixed with the stats app namespace in the root URL configuration.
+
+URL Patterns:
+    summary/      - Overall financial summary (income, expenses, net).
+    by-category/  - Expense breakdown by category.
+    monthly/      - Monthly income and expense trends.
+    top-merchants/ - Highest-spending merchants/descriptions.
+    balance/      - Historical balance over time.
+    comparison/   - Category spending comparison between periods.
+"""
+
 from django.urls import path
 from . import views
 
