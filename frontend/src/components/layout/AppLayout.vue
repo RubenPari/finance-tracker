@@ -72,10 +72,7 @@ const navItems = [
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem v-for="item in navItems" :key="item.path">
-                <SidebarMenuButton
-                  as-child
-                  :is-active="route.path.startsWith(item.path)"
-                >
+                <SidebarMenuButton as-child :is-active="route.path.startsWith(item.path)">
                   <RouterLink :to="item.path">
                     <component :is="item.icon" />
                     <span>{{ item.label }}</span>
@@ -110,18 +107,16 @@ const navItems = [
     </Sidebar>
 
     <SidebarInset>
-      <header
-        class="flex h-12 items-center gap-2 border-b px-4"
-      >
+      <header class="flex h-12 items-center gap-2 border-b px-4">
         <SidebarTrigger class="-ml-1" />
         <Separator orientation="vertical" class="mr-2 h-4" />
         <div class="flex-1" />
         <ModeToggle />
       </header>
 
-      <main class="flex-1 overflow-y-auto p-6">
+      <div class="flex-1 overflow-y-auto p-6">
         <RouterView />
-      </main>
+      </div>
     </SidebarInset>
   </SidebarProvider>
 </template>
