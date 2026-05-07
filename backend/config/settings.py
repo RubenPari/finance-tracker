@@ -130,7 +130,7 @@ AI_GATEWAY_URL = os.environ.get(
     'AI_GATEWAY_URL', 'https://gateway.ai.vercel.com/v1/chat/completions'
 )
 AI_GATEWAY_KEY = os.environ.get('AI_GATEWAY_KEY', '')
-AI_GATEWAY_MODEL = os.environ.get('AI_GATEWAY_MODEL', 'gpt-5')
+AI_GATEWAY_MODEL = os.environ.get('AI_GATEWAY_MODEL', 'xai/grok-4.1-fast-non-reasoning')
 AI_SUGGESTIONS_TIMEOUT = int(os.environ.get('AI_SUGGESTIONS_TIMEOUT', '10'))
 
 # Vercel AI Gateway (Categorization)
