@@ -1,10 +1,43 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { budgetsApi, categoriesApi } from '@/api'
 import type { Budget, Category } from '@/types'
 import { formatCurrency } from '@/utils/formatters'
-import LoadingSpinner from '@/components/ui/LoadingSpinner.vue'
-import EmptyState from '@/components/ui/EmptyState.vue'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import { Plus, ChevronLeft, ChevronRight, Trash2 } from 'lucide-vue-next'
 
 const budgets = ref<Budget[]>([])
 const categories = ref<Category[]>([])
@@ -51,18 +84,8 @@ async function deleteBudget(id: number) {
 }
 
 const months = [
-  'Gennaio',
-  'Febbraio',
-  'Marzo',
-  'Aprile',
-  'Maggio',
-  'Giugno',
-  'Luglio',
-  'Agosto',
-  'Settembre',
-  'Ottobre',
-  'Novembre',
-  'Dicembre',
+  'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
+  'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre',
 ]
 
 function prevMonth() {
@@ -83,93 +106,149 @@ function nextMonth() {
   }
 }
 
+function getProgressVariant(pct: number): 'default' | 'warning' | 'destructive' {
+  if (pct >= 100) return 'destructive'
+  if (pct >= 80) return 'warning'
+  return 'default'
+}
+
 onMounted(loadData)
+watch([year, month], loadData)
 </script>
 
 <template>
   <div>
     <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
-      <h1 class="text-2xl font-bold text-gray-900">Budget</h1>
-      <button class="btn-primary" @click="showCreate = !showCreate">+ Nuovo budget</button>
+      <h1 class="text-2xl font-bold tracking-tight">Budget</h1>
+      <Dialog v-model:open="showCreate">
+        <DialogTrigger as-child>
+          <Button>
+            <Plus class="mr-1 size-4" />
+            Nuovo budget
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nuovo budget</DialogTitle>
+            <DialogDescription>
+              Imposta un limite di spesa per una categoria nel mese corrente.
+            </DialogDescription>
+          </DialogHeader>
+          <div class="space-y-4 py-4">
+            <div class="space-y-2">
+              <Label>Categoria</Label>
+              <Select v-model="newBudget.category">
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleziona categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem
+                    v-for="cat in categories"
+                    :key="cat.id"
+                    :value="cat.id"
+                  >
+                    {{ cat.name }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div class="space-y-2">
+              <Label for="budget-limit">Limite (€)</Label>
+              <Input
+                id="budget-limit"
+                v-model.number="newBudget.amount_limit"
+                type="number"
+                min="0"
+                step="1"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" @click="showCreate = false">Annulla</Button>
+            <Button @click="createBudget">Crea</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
 
-    <div class="card mb-6">
-      <div class="flex items-center justify-between">
-        <button class="btn-secondary text-sm" @click="prevMonth">◀</button>
-        <span class="text-lg font-semibold text-gray-900">
+    <Card class="mb-6">
+      <CardContent class="flex items-center justify-between py-4">
+        <Button variant="outline" size="icon" @click="prevMonth">
+          <ChevronLeft class="size-4" />
+        </Button>
+        <span class="text-lg font-semibold">
           {{ months[month - 1] }} {{ year }}
         </span>
-        <button class="btn-secondary text-sm" @click="nextMonth">▶</button>
+        <Button variant="outline" size="icon" @click="nextMonth">
+          <ChevronRight class="size-4" />
+        </Button>
+      </CardContent>
+    </Card>
+
+    <template v-if="loading">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Skeleton v-for="i in 3" :key="i" class="h-36" />
       </div>
-    </div>
-
-    <div v-if="showCreate" class="card mb-6">
-      <div class="flex items-end gap-3">
-        <div class="flex-1">
-          <label class="mb-1 block text-xs font-medium text-gray-600">Categoria</label>
-          <select v-model="newBudget.category" class="input-field">
-            <option :value="null">Seleziona...</option>
-            <option v-for="cat in categories" :key="cat.id" :value="cat.id">
-              {{ cat.name }}
-            </option>
-          </select>
-        </div>
-        <div>
-          <label class="mb-1 block text-xs font-medium text-gray-600">Limite (€)</label>
-          <input
-            v-model.number="newBudget.amount_limit"
-            type="number"
-            min="0"
-            step="1"
-            class="input-field w-32"
-          />
-        </div>
-        <button class="btn-primary" @click="createBudget">Crea</button>
-        <button class="btn-secondary" @click="showCreate = false">Annulla</button>
+    </template>
+    <template v-else-if="!budgets.length">
+      <Card>
+        <CardContent class="py-12 text-center">
+          <p class="text-muted-foreground">Nessun budget definito per questo mese</p>
+        </CardContent>
+      </Card>
+    </template>
+    <template v-else>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Card v-for="b in budgets" :key="b.id">
+          <CardHeader class="pb-2">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="size-3 rounded-full" :style="{ backgroundColor: b.category_color }" />
+                <CardTitle class="text-base">{{ b.category_name }}</CardTitle>
+              </div>
+              <AlertDialog>
+                <AlertDialogTrigger as-child>
+                  <Button size="icon" variant="ghost" class="text-destructive hover:text-destructive">
+                    <Trash2 class="size-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Eliminare il budget?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Il budget per {{ b.category_name }} verrà eliminato definitivamente.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Annulla</AlertDialogCancel>
+                    <AlertDialogAction
+                      class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      @click="deleteBudget(b.id)"
+                    >
+                      Elimina
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div class="mb-2 flex justify-between text-sm">
+              <span class="font-mono tabular-nums">{{ formatCurrency(b.current_spent) }}</span>
+              <span class="text-muted-foreground font-mono tabular-nums">{{ formatCurrency(b.amount_limit) }}</span>
+            </div>
+            <Progress :model-value="Math.min(b.percentage, 100)" class="h-2" />
+            <div class="mt-2 flex items-center justify-between text-xs">
+              <span class="text-muted-foreground">{{ b.percentage }}% utilizzato</span>
+              <Badge v-if="b.percentage >= 100" variant="destructive">Budget superato!</Badge>
+              <Badge v-else-if="b.percentage >= 80" variant="secondary">Attenzione</Badge>
+              <span v-else class="font-medium text-income">
+                {{ formatCurrency(b.amount_limit - b.current_spent) }} rimanenti
+              </span>
+            </div>
+          </CardContent>
+        </Card>
       </div>
-    </div>
-
-    <LoadingSpinner v-if="loading" />
-    <EmptyState v-else-if="!budgets.length" message="Nessun budget definito per questo mese" />
-    <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      <div v-for="b in budgets" :key="b.id" class="card">
-        <div class="mb-3 flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <span class="h-3 w-3 rounded-full" :style="{ backgroundColor: b.category_color }" />
-            <span class="text-sm font-semibold text-gray-900">{{ b.category_name }}</span>
-          </div>
-          <button class="text-xs text-red-500 hover:text-red-700" @click="deleteBudget(b.id)">
-            Elimina
-          </button>
-        </div>
-
-        <div class="mb-2">
-          <div class="flex justify-between text-sm">
-            <span class="text-gray-600">{{ formatCurrency(b.current_spent) }}</span>
-            <span class="text-gray-400">{{ formatCurrency(b.amount_limit) }}</span>
-          </div>
-          <div class="mt-1 h-2.5 w-full overflow-hidden rounded-full bg-gray-200">
-            <div
-              class="h-full rounded-full transition-all duration-300"
-              :class="{
-                'bg-green-500': b.percentage < 80,
-                'bg-yellow-500': b.percentage >= 80 && b.percentage < 100,
-                'bg-red-500': b.percentage >= 100,
-              }"
-              :style="{ width: `${Math.min(b.percentage, 100)}%` }"
-            />
-          </div>
-        </div>
-
-        <div class="flex items-center justify-between text-xs">
-          <span class="text-gray-400">{{ b.percentage }}% utilizzato</span>
-          <span v-if="b.percentage >= 100" class="font-medium text-red-600">Budget superato!</span>
-          <span v-else-if="b.percentage >= 80" class="font-medium text-yellow-600">Attenzione</span>
-          <span v-else class="font-medium text-green-600">
-            {{ formatCurrency(b.amount_limit - b.current_spent) }} rimanenti
-          </span>
-        </div>
-      </div>
-    </div>
+    </template>
   </div>
 </template>
