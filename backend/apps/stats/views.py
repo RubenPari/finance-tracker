@@ -18,9 +18,11 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.db.models import Sum, Count, Q
+from django.db.models.functions import Lower
 from django.utils import timezone
 from datetime import datetime, timedelta, date
 from dateutil.relativedelta import relativedelta
+from statistics import mean, pstdev
 
 from apps.transactions.models import Transaction
 
@@ -420,3 +422,137 @@ class ComparisonView(APIView):
                  / max(abs(float(prev_map.get(c['category__name'], 1))), 1)) * 100, 1
             ) if prev_map.get(c['category__name']) else None,
         } for c in current])
+
+
+# Detection thresholds for recurring subscription inference.
+SUBSCRIPTION_LOOKBACK_MONTHS = 12
+SUBSCRIPTION_MIN_OCCURRENCES = 3
+# Max ratio of amount standard deviation over mean for a group to be considered stable.
+SUBSCRIPTION_MAX_STD_RATIO = 0.25
+# Tolerance windows (in days) around canonical cadences.
+_CADENCE_WINDOWS = [
+    ('weekly', 6, 8),
+    ('monthly', 25, 35),
+    ('quarterly', 85, 95),
+    ('yearly', 350, 380),
+]
+
+
+def _classify_cadence(avg_interval_days: float) -> str:
+    """Classify the average interval between charges into a cadence label."""
+    for label, low, high in _CADENCE_WINDOWS:
+        if low <= avg_interval_days <= high:
+            return label
+    return 'irregular'
+
+
+class SubscriptionsView(APIView):
+    """API endpoint returning detected recurring subscriptions for the user.
+
+    Groups expense transactions from the last 12 months by normalized description,
+    keeps only stable recurring patterns (at least 3 occurrences, amount standard
+    deviation <= 25% of the mean), and returns each detected subscription with
+    cadence, average amount, next expected charge date, and activity status.
+    Also returns a summary with totals and monthly/yearly projections.
+
+    Returns:
+        Response: JSON object with 'summary' and 'items' keys.
+    """
+
+    def get(self, request):
+        """Handle GET request to retrieve detected subscriptions."""
+        now = timezone.now()
+        lookback_start = now - relativedelta(months=SUBSCRIPTION_LOOKBACK_MONTHS)
+
+        # Group candidate transactions by lowercased description to tolerate
+        # minor casing differences in merchant names.
+        groups = (
+            Transaction.objects.filter(
+                user=request.user,
+                amount__lt=0,
+                completed_at__gte=lookback_start,
+            )
+            .annotate(desc_norm=Lower('description'))
+            .values('desc_norm')
+            .annotate(occurrences=Count('id'))
+            .filter(occurrences__gte=SUBSCRIPTION_MIN_OCCURRENCES)
+        )
+
+        items = []
+        for g in groups:
+            # Load ordered transactions for this group to compute intervals and metadata
+            txs = list(
+                Transaction.objects.filter(
+                    user=request.user,
+                    amount__lt=0,
+                    completed_at__gte=lookback_start,
+                )
+                .annotate(desc_norm=Lower('description'))
+                .filter(desc_norm=g['desc_norm'])
+                .select_related('category')
+                .order_by('completed_at')
+            )
+            if len(txs) < SUBSCRIPTION_MIN_OCCURRENCES:
+                continue
+
+            amounts = [abs(float(t.amount)) for t in txs]
+            avg_amount = mean(amounts)
+            if avg_amount <= 0:
+                continue
+
+            # Reject groups with unstable amounts (e.g. variable-price merchants)
+            std_amount = pstdev(amounts) if len(amounts) > 1 else 0.0
+            if std_amount / avg_amount > SUBSCRIPTION_MAX_STD_RATIO:
+                continue
+
+            dates = [t.completed_at for t in txs]
+            intervals = [
+                (dates[i] - dates[i - 1]).total_seconds() / 86400.0
+                for i in range(1, len(dates))
+            ]
+            avg_interval_days = mean(intervals) if intervals else 0.0
+            if avg_interval_days <= 0:
+                continue
+
+            cadence = _classify_cadence(avg_interval_days)
+            last_charge = dates[-1]
+            first_charge = dates[0]
+            next_expected = last_charge + timedelta(days=avg_interval_days)
+
+            # Consider a subscription inactive if the expected next charge is
+            # overdue by more than half of its typical interval.
+            overdue_cutoff = last_charge + timedelta(days=avg_interval_days * 1.5)
+            is_active = now <= overdue_cutoff
+
+            monthly_equivalent = avg_amount * (30.0 / avg_interval_days)
+            total_paid = sum(amounts)
+
+            # Use the most recent transaction for display name & category metadata
+            latest = txs[-1]
+            items.append({
+                'merchant': latest.description,
+                'category': latest.category.name if latest.category else None,
+                'color': latest.category.color if latest.category else '#6B7280',
+                'cadence': cadence,
+                'avg_amount': round(avg_amount, 2),
+                'avg_interval_days': round(avg_interval_days, 1),
+                'occurrences': len(txs),
+                'first_charge': first_charge.isoformat(),
+                'last_charge': last_charge.isoformat(),
+                'next_expected': next_expected.isoformat(),
+                'total_paid': round(total_paid, 2),
+                'monthly_equivalent': round(monthly_equivalent, 2),
+                'is_active': is_active,
+            })
+
+        active_items = [i for i in items if i['is_active']]
+        monthly_total = sum(i['monthly_equivalent'] for i in active_items)
+        summary = {
+            'active_count': len(active_items),
+            'inactive_count': len(items) - len(active_items),
+            'monthly_total': round(monthly_total, 2),
+            'yearly_projection': round(monthly_total * 12.0, 2),
+            'total_paid_12m': round(sum(i['total_paid'] for i in items), 2),
+        }
+
+        return Response({'summary': summary, 'items': items})

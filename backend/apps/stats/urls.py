@@ -10,6 +10,7 @@ URL Patterns:
     top-merchants/ - Highest-spending merchants/descriptions.
     balance/      - Historical balance over time.
     comparison/   - Category spending comparison between periods.
+    subscriptions/ - Detected recurring subscriptions with analytics.
 """
 
 from django.urls import path
@@ -22,4 +23,5 @@ urlpatterns = [
     path('top-merchants/', views.TopMerchantsView.as_view(), name='stats-top-merchants'),
     path('balance/', views.BalanceView.as_view(), name='stats-balance'),
     path('comparison/', views.ComparisonView.as_view(), name='stats-comparison'),
+    path('subscriptions/', views.SubscriptionsView.as_view(), name='stats-subscriptions'),
 ]
