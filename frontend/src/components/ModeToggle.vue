@@ -1,4 +1,14 @@
 <script setup lang="ts">
+/**
+ * ModeToggle - Dark/light/system theme selector dropdown.
+ *
+ * Renders a button that toggles between sun/moon icons based on the
+ * current theme, and opens a dropdown menu with three options:
+ * light, dark, and auto (system preference).
+ *
+ * Consumes the `useTheme` composable which manages the theme mode
+ * via a reactive `mode` ref that syncs with the document root class.
+ */
 import { Moon, Sun, Monitor } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import {
@@ -9,6 +19,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useTheme } from '@/composables/useTheme'
 
+// Reactive theme mode from the theme composable; setting it to
+// 'light', 'dark', or 'auto' updates the document class automatically
 const { mode } = useTheme()
 </script>
 

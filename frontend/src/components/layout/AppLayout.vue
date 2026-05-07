@@ -1,4 +1,18 @@
 <script setup lang="ts">
+/**
+ * AppLayout - Main application layout with collapsible sidebar navigation.
+ *
+ * Wraps the entire authenticated app in a `SidebarProvider`, providing:
+ * - A sidebar header with the Finance Tracker branding and logo
+ * - A navigation menu (Dashboard, Transactions, Import, Categories, Budgets, Suggestions)
+ *   with active-state highlighting based on the current route
+ * - A sidebar footer displaying the current user's email and a logout button
+ * - A top header bar containing a sidebar toggle and the theme mode switch
+ * - The main content area that renders the matched `RouterView`
+ *
+ * Uses shadcn-vue sidebar primitives for collapsible behaviour,
+ * and lucide-vue-next icons for navigation items.
+ */
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import {
@@ -31,9 +45,12 @@ import {
 } from '@/components/ui/sidebar'
 import { Separator } from '@/components/ui/separator'
 
+// Current route for active-nav highlighting
 const route = useRoute()
+// Auth store instance for user info and logout
 const auth = useAuthStore()
 
+// Sidebar navigation items: each entry maps a route path, display label, and icon component
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/transactions', label: 'Transazioni', icon: ArrowLeftRight },

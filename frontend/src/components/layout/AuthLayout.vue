@@ -1,4 +1,12 @@
 <script setup lang="ts">
+/**
+ * AuthLayout - Centered card layout for authentication pages (login, register).
+ *
+ * Displays the Finance Tracker logo/branding at the top center,
+ * a theme toggle in the top-right corner, and renders the slot
+ * content (the auth form) below. Designed for full-viewport
+ * centering with responsive padding.
+ */
 import { BarChart3 } from 'lucide-vue-next'
 import ModeToggle from '@/components/ModeToggle.vue'
 </script>
