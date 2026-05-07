@@ -125,14 +125,13 @@ watch([filters, page], loadData, { deep: true })
             />
           </div>
           <Select
-            :model-value="filters.category ?? ''"
-            @update:model-value="filters.category = $event === '' ? undefined : Number($event)"
+            :model-value="filters.category !== undefined ? String(filters.category) : ''"
+            @update:model-value="filters.category = $event ? Number($event) : undefined"
           >
             <SelectTrigger>
               <SelectValue placeholder="Tutte le categorie" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Tutte le categorie</SelectItem>
               <SelectItem v-for="cat in categories" :key="cat.id" :value="String(cat.id)">
                 {{ cat.name }}
               </SelectItem>
@@ -140,13 +139,14 @@ watch([filters, page], loadData, { deep: true })
           </Select>
           <Select
             :model-value="filters.sign ?? ''"
-            @update:model-value="filters.sign = ($event || undefined) as 'expense' | 'income' | undefined"
+            @update:model-value="
+              filters.sign = ($event || undefined) as 'expense' | 'income' | undefined
+            "
           >
             <SelectTrigger>
               <SelectValue placeholder="Tutti i tipi" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Tutti i tipi</SelectItem>
               <SelectItem value="expense">Solo spese</SelectItem>
               <SelectItem value="income">Solo entrate</SelectItem>
             </SelectContent>
@@ -243,7 +243,11 @@ watch([filters, page], loadData, { deep: true })
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger as-child>
-                            <Button size="icon" variant="ghost" class="text-destructive hover:text-destructive">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              class="text-destructive hover:text-destructive"
+                            >
                               <Trash2 class="size-4" />
                             </Button>
                           </AlertDialogTrigger>
@@ -251,7 +255,8 @@ watch([filters, page], loadData, { deep: true })
                             <AlertDialogHeader>
                               <AlertDialogTitle>Eliminare la transazione?</AlertDialogTitle>
                               <AlertDialogDescription>
-                                Questa azione non può essere annullata. La transazione verrà eliminata definitivamente.
+                                Questa azione non può essere annullata. La transazione verrà
+                                eliminata definitivamente.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
@@ -291,9 +296,7 @@ watch([filters, page], loadData, { deep: true })
         <Button variant="outline" size="sm" :disabled="page <= 1" @click="page--">
           Precedente
         </Button>
-        <span class="text-sm text-muted-foreground">
-          Pagina {{ page }} di {{ totalPages }}
-        </span>
+        <span class="text-sm text-muted-foreground"> Pagina {{ page }} di {{ totalPages }} </span>
         <Button variant="outline" size="sm" :disabled="page >= totalPages" @click="page++">
           Successiva
         </Button>
