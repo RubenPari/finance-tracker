@@ -52,3 +52,4 @@ frontend/*.timestamp-*-*.mjs
 backend/celerybeat-schedule
 .pi/
 .pi-lens/
+.claude/skills/use-spark/SKILL.md
