@@ -42,6 +42,23 @@ async function loadData() {
   }
 }
 
+function recomputeSummary() {
+  // Keep the UI responsive after feedback by adjusting summary locally.
+  const active = subscriptions.value.filter((s) => s.is_active).length
+  const inactive = subscriptions.value.length - active
+  const monthlyTotal = subscriptions.value
+    .filter((s) => s.is_active)
+    .reduce((acc, s) => acc + (s.monthly_equivalent || 0), 0)
+
+  summary.value = {
+    active_count: active,
+    inactive_count: inactive,
+    monthly_total: Number(monthlyTotal.toFixed(2)),
+    yearly_projection: Number((monthlyTotal * 12).toFixed(2)),
+    total_paid_12m: summary.value?.total_paid_12m ?? 0,
+  }
+}
+
 async function sendFeedback(sub: Subscription, decision: 'CONFIRMED' | 'REJECTED') {
   savingKey.value = sub.cluster_key
   try {
@@ -50,7 +67,14 @@ async function sendFeedback(sub: Subscription, decision: 'CONFIRMED' | 'REJECTED
       decision,
       canonical_merchant_override: null,
     })
-    await loadData()
+    // Optimistic UI update: avoid full reload (which can be slow due to AI + clustering).
+    if (decision === 'CONFIRMED') {
+      const idx = subscriptions.value.findIndex((s) => s.cluster_key === sub.cluster_key)
+      if (idx >= 0) subscriptions.value[idx] = { ...subscriptions.value[idx], review_status: 'confirmed' }
+    } else {
+      subscriptions.value = subscriptions.value.filter((s) => s.cluster_key !== sub.cluster_key)
+    }
+    recomputeSummary()
   } finally {
     savingKey.value = null
   }
