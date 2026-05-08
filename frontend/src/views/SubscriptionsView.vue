@@ -34,8 +34,11 @@ async function loadData() {
   loading.value = true
   try {
     const response = await statsApi.subscriptions()
+    // Show only active subscriptions (future spend).
+    subscriptions.value = response.data.items.filter((s) => s.is_active)
+    // Recompute summary from the displayed list for consistency.
     summary.value = response.data.summary
-    subscriptions.value = response.data.items
+    recomputeSummary()
   } catch (error) {
   } finally {
     loading.value = false
@@ -45,14 +48,13 @@ async function loadData() {
 function recomputeSummary() {
   // Keep the UI responsive after feedback by adjusting summary locally.
   const active = subscriptions.value.filter((s) => s.is_active).length
-  const inactive = subscriptions.value.length - active
   const monthlyTotal = subscriptions.value
     .filter((s) => s.is_active)
     .reduce((acc, s) => acc + (s.monthly_equivalent || 0), 0)
 
   summary.value = {
     active_count: active,
-    inactive_count: inactive,
+    inactive_count: 0,
     monthly_total: Number(monthlyTotal.toFixed(2)),
     yearly_projection: Number((monthlyTotal * 12).toFixed(2)),
     total_paid_12m: summary.value?.total_paid_12m ?? 0,
@@ -119,7 +121,7 @@ onMounted(loadData)
     <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
       <h1 class="text-2xl font-bold tracking-tight">Abbonamenti</h1>
       <span class="text-sm text-muted-foreground">
-        {{ summary?.active_count }} attivi, {{ summary?.inactive_count }} inattivi
+        {{ summary?.active_count }} attivi
       </span>
     </div>
 
@@ -132,11 +134,6 @@ onMounted(loadData)
             <div class="text-center">
               <p class="text-xs font-medium text-muted-foreground">Attivi</p>
               <p class="text-2xl font-semibold">{{ summary.active_count }}</p>
-            </div>
-            <!-- Inactive Count -->
-            <div class="text-center">
-              <p class="text-xs font-medium text-muted-foreground">Inattivi</p>
-              <p class="text-2xl font-semibold">{{ summary.inactive_count }}</p>
             </div>
             <!-- Monthly Total -->
             <div class="text-center">
