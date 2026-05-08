@@ -23,8 +23,11 @@ from django.utils import timezone
 from datetime import datetime, timedelta, date
 from dateutil.relativedelta import relativedelta
 from statistics import mean, pstdev
+import re
+import hashlib
 
 from apps.transactions.models import Transaction
+from apps.stats.subscriptions_ai import classify_subscription_candidates
 
 
 def get_date_range(request):
@@ -426,9 +429,9 @@ class ComparisonView(APIView):
 
 # Detection thresholds for recurring subscription inference.
 SUBSCRIPTION_LOOKBACK_MONTHS = 12
-SUBSCRIPTION_MIN_OCCURRENCES = 3
-# Max ratio of amount standard deviation over mean for a group to be considered stable.
-SUBSCRIPTION_MAX_STD_RATIO = 0.25
+SUBSCRIPTION_MIN_OCCURRENCES = 2
+# Minimum number of intervals (i.e. 2 transactions -> 1 interval) to attempt cadence inference.
+SUBSCRIPTION_MIN_INTERVALS = 1
 # Tolerance windows (in days) around canonical cadences.
 _CADENCE_WINDOWS = [
     ('weekly', 6, 8),
@@ -444,6 +447,85 @@ def _classify_cadence(avg_interval_days: float) -> str:
         if low <= avg_interval_days <= high:
             return label
     return 'irregular'
+
+
+_DESC_STOPWORDS = {
+    'pagamento',
+    'payment',
+    'pos',
+    'carta',
+    'card',
+    'transazione',
+    'transaction',
+    'addebito',
+    'debito',
+    'revolut',
+    'visa',
+    'mastercard',
+    'mc',
+}
+
+
+def _normalize_description(description: str) -> str:
+    """Normalize a transaction description into a stable clustering key."""
+    if not description:
+        return ''
+
+    s = description.casefold()
+    # Keep alphanumerics and a small set of separators, then collapse whitespace.
+    s = re.sub(r'[^a-z0-9\s&+\-./]', ' ', s)
+    s = re.sub(r'\s+', ' ', s).strip()
+
+    tokens = [t for t in re.split(r'[\s./\-]+', s) if t]
+    tokens = [
+        t for t in tokens
+        if t not in _DESC_STOPWORDS and not t.isdigit() and len(t) > 1
+    ]
+    if not tokens:
+        return s[:64]
+
+    return ' '.join(tokens[:6])[:64]
+
+
+def _median(values: list[float]) -> float:
+    if not values:
+        return 0.0
+    v = sorted(values)
+    n = len(v)
+    mid = n // 2
+    if n % 2 == 1:
+        return float(v[mid])
+    return float((v[mid - 1] + v[mid]) / 2.0)
+
+
+def _mad(values: list[float], med: float | None = None) -> float:
+    if not values:
+        return 0.0
+    m = med if med is not None else _median(values)
+    devs = [abs(x - m) for x in values]
+    return _median(devs)
+
+
+def _safe_ratio(num: float, den: float, default: float = 0.0) -> float:
+    if den <= 0:
+        return default
+    return num / den
+
+
+def _pattern_score(occurrences: int, amount_mad_ratio: float, interval_mad_ratio: float) -> float:
+    """Heuristic score 0..1 for recurring-pattern likelihood (pre-AI)."""
+    occ = min(max(occurrences, 0), 8)
+    occ_score = max(0.0, min(1.0, (occ - 1) / 7.0))  # 2 -> ~0.14, 8 -> 1.0
+
+    amt_score = max(0.0, 1.0 - (amount_mad_ratio / 0.75))  # tolerate variability
+    int_score = max(0.0, 1.0 - (interval_mad_ratio / 0.60))
+
+    return round(max(0.0, min(1.0, (0.45 * occ_score + 0.30 * amt_score + 0.25 * int_score))), 3)
+
+
+def _cluster_key_hash(user_id: int, cluster_key: str) -> str:
+    raw = f'{user_id}:{cluster_key}'.encode('utf-8', errors='ignore')
+    return hashlib.sha256(raw).hexdigest()
 
 
 class SubscriptionsView(APIView):
@@ -464,86 +546,144 @@ class SubscriptionsView(APIView):
         now = timezone.now()
         lookback_start = now - relativedelta(months=SUBSCRIPTION_LOOKBACK_MONTHS)
 
-        # Group candidate transactions by lowercased description to tolerate
-        # minor casing differences in merchant names.
-        groups = (
+        base_qs = (
             Transaction.objects.filter(
                 user=request.user,
                 amount__lt=0,
                 completed_at__gte=lookback_start,
             )
-            .annotate(desc_norm=Lower('description'))
-            .values('desc_norm')
-            .annotate(occurrences=Count('id'))
-            .filter(occurrences__gte=SUBSCRIPTION_MIN_OCCURRENCES)
+            .select_related('category')
+            .order_by('completed_at')
         )
 
-        items = []
-        for g in groups:
-            # Load ordered transactions for this group to compute intervals and metadata
-            txs = list(
-                Transaction.objects.filter(
-                    user=request.user,
-                    amount__lt=0,
-                    completed_at__gte=lookback_start,
-                )
-                .annotate(desc_norm=Lower('description'))
-                .filter(desc_norm=g['desc_norm'])
-                .select_related('category')
-                .order_by('completed_at')
-            )
+        clusters: dict[str, list[Transaction]] = {}
+        for tx in base_qs:
+            key = _normalize_description(tx.description)
+            if not key:
+                continue
+            clusters.setdefault(key, []).append(tx)
+
+        items: list[dict] = []
+        ai_candidates: list[dict] = []
+        for cluster_label, txs in clusters.items():
             if len(txs) < SUBSCRIPTION_MIN_OCCURRENCES:
                 continue
 
             amounts = [abs(float(t.amount)) for t in txs]
-            avg_amount = mean(amounts)
-            if avg_amount <= 0:
-                continue
-
-            # Reject groups with unstable amounts (e.g. variable-price merchants)
-            std_amount = pstdev(amounts) if len(amounts) > 1 else 0.0
-            if std_amount / avg_amount > SUBSCRIPTION_MAX_STD_RATIO:
-                continue
-
             dates = [t.completed_at for t in txs]
+            if len(dates) < 2:
+                continue
+
             intervals = [
                 (dates[i] - dates[i - 1]).total_seconds() / 86400.0
                 for i in range(1, len(dates))
             ]
-            avg_interval_days = mean(intervals) if intervals else 0.0
-            if avg_interval_days <= 0:
+            intervals = [d for d in intervals if d > 0.1]
+            if len(intervals) < SUBSCRIPTION_MIN_INTERVALS:
                 continue
 
-            cadence = _classify_cadence(avg_interval_days)
+            med_amount = _median(amounts)
+            med_interval = _median(intervals)
+            if med_amount <= 0 or med_interval <= 0:
+                continue
+
+            amount_mad_ratio = _safe_ratio(_mad(amounts, med_amount), med_amount)
+            interval_mad_ratio = _safe_ratio(_mad(intervals, med_interval), med_interval)
+            score = _pattern_score(len(txs), amount_mad_ratio, interval_mad_ratio)
+            if score < 0.18:
+                continue
+
+            cadence = _classify_cadence(med_interval)
             last_charge = dates[-1]
             first_charge = dates[0]
-            next_expected = last_charge + timedelta(days=avg_interval_days)
+            next_expected = last_charge + timedelta(days=med_interval)
 
-            # Consider a subscription inactive if the expected next charge is
-            # overdue by more than half of its typical interval.
-            overdue_cutoff = last_charge + timedelta(days=avg_interval_days * 1.5)
+            overdue_cutoff = last_charge + timedelta(days=med_interval * 1.5)
             is_active = now <= overdue_cutoff
 
-            monthly_equivalent = avg_amount * (30.0 / avg_interval_days)
+            monthly_equivalent = med_amount * (30.0 / med_interval)
             total_paid = sum(amounts)
 
-            # Use the most recent transaction for display name & category metadata
             latest = txs[-1]
-            items.append({
+            cluster_key = _cluster_key_hash(request.user.id, cluster_label)
+            item = {
+                'cluster_key': cluster_key,
+                'cluster_label': cluster_label,
                 'merchant': latest.description,
                 'category': latest.category.name if latest.category else None,
                 'color': latest.category.color if latest.category else '#6B7280',
                 'cadence': cadence,
-                'avg_amount': round(avg_amount, 2),
-                'avg_interval_days': round(avg_interval_days, 1),
+                'avg_amount': round(float(med_amount), 2),
+                'avg_interval_days': round(float(med_interval), 1),
                 'occurrences': len(txs),
                 'first_charge': first_charge.isoformat(),
                 'last_charge': last_charge.isoformat(),
                 'next_expected': next_expected.isoformat(),
-                'total_paid': round(total_paid, 2),
-                'monthly_equivalent': round(monthly_equivalent, 2),
+                'total_paid': round(float(total_paid), 2),
+                'monthly_equivalent': round(float(monthly_equivalent), 2),
                 'is_active': is_active,
+                'pattern_score': score,
+                'amount_mad_ratio': round(float(amount_mad_ratio), 3),
+                'interval_mad_ratio': round(float(interval_mad_ratio), 3),
+                'ai_is_subscription': None,
+                'confidence': None,
+                'reason': None,
+                'review_status': 'proposed',
+            }
+            items.append(item)
+
+            # Build a compact AI payload. Keep the prompt small to control cost.
+            charges = []
+            for t in txs[-10:]:
+                charges.append({
+                    'date': t.completed_at.date().isoformat(),
+                    'amount': round(abs(float(t.amount)), 2),
+                    'category': t.category.name if t.category else None,
+                })
+            ai_candidates.append({
+                'cluster_key': cluster_key,
+                'merchant_examples': sorted({t.description for t in txs[-5:]}),
+                'charges': charges,
+                'stats': {
+                    'occurrences': len(txs),
+                    'pattern_score': score,
+                    'amount_mad_ratio': round(float(amount_mad_ratio), 3),
+                    'interval_mad_ratio': round(float(interval_mad_ratio), 3),
+                    'cadence_guess': cadence,
+                },
             })
+
+        # AI classification (best-effort). Limit to highest-signal candidates.
+        ai_candidates.sort(key=lambda c: (c['stats'].get('pattern_score', 0), c['stats'].get('occurrences', 0)), reverse=True)
+        ai_candidates = ai_candidates[:40]
+        ai_map = classify_subscription_candidates(
+            user_id=request.user.id,
+            candidates=ai_candidates,
+        )
+
+        for i in items:
+            ck = i.get('cluster_key')
+            if not ck or ck not in ai_map:
+                continue
+            r = ai_map[ck]
+            i['ai_is_subscription'] = r.get('is_subscription')
+            i['confidence'] = r.get('confidence')
+            i['reason'] = r.get('reason')
+            # Prefer AI frequency if present and valid.
+            freq = r.get('frequency')
+            if freq in {'weekly', 'monthly', 'quarterly', 'yearly', 'irregular'}:
+                i['cadence'] = freq
+            if r.get('canonical_merchant'):
+                i['merchant'] = r['canonical_merchant']
+            # Review status:
+            # - confirmed/rejected will come from explicit user feedback
+            # - here we provide a triage: proposed vs needs_review vs rejected
+            if r.get('is_subscription'):
+                i['review_status'] = 'proposed' if (i.get('pattern_score', 0) < 0.35 or (i.get('confidence') or 0) < 0.7) else 'proposed'
+            else:
+                conf = float(i.get('confidence') or 0)
+                pat = float(i.get('pattern_score') or 0)
+                i['review_status'] = 'rejected' if (conf >= 0.8 and pat < 0.45) else 'needs_review'
 
         active_items = [i for i in items if i['is_active']]
         monthly_total = sum(i['monthly_equivalent'] for i in active_items)
