@@ -249,6 +249,10 @@ export interface Suggestion {
 
 /** Detected recurring subscription with usage analytics. */
 export interface Subscription {
+  /** Deterministic cluster key for feedback overrides. */
+  cluster_key: string
+  /** Human-ish normalized label (debug). */
+  cluster_label: string
   /** Merchant or description label as seen in the latest transaction. */
   merchant: string
   /** Category name assigned to the latest transaction, or null if uncategorised. */
@@ -275,6 +279,17 @@ export interface Subscription {
   monthly_equivalent: number
   /** Whether the subscription is still considered active (next charge not overdue). */
   is_active: boolean
+
+  /** Pre-AI heuristic score (0..1). */
+  pattern_score: number
+  /** AI decision (if available). */
+  ai_is_subscription: boolean | null
+  /** AI confidence (0..1) (if available). */
+  confidence: number | null
+  /** Short reason for the classification (if available). */
+  reason: string | null
+  /** Review status for the assisted flow. */
+  review_status: 'confirmed' | 'proposed' | 'needs_review'
 }
 
 /** Aggregated summary of detected subscriptions. */

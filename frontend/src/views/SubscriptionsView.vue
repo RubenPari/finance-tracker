@@ -5,10 +5,11 @@
  * Features:
  * - Summary statistics: active/inactive counts, monthly total, yearly projection
  * - Detailed list of subscriptions with merchant, category, amount, cadence, next charge, status
+ * - Assisted review flow: confirm/reject with AI confidence and reason
  * - Loading and empty states
  * - Utilizes existing API endpoint and types
  */
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted } from 'vue'
 import { statsApi } from '@/api'
 import type { Subscription, SubscriptionsResponse } from '@/types'
 import { formatCurrency, formatDate, categoryBadgeStyle } from '@/utils/formatters'
@@ -16,7 +17,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Repeat } from 'lucide-vue-next'
+import type { BadgeVariants } from '@/components/ui/badge'
 
 /** Subscription data */
 const subscriptions = ref<Subscription[]>([])
@@ -24,6 +25,7 @@ const subscriptions = ref<Subscription[]>([])
 const summary = ref<SubscriptionsResponse['summary'] | null>(null)
 /** Loading state */
 const loading = ref(true)
+const savingKey = ref<string | null>(null)
 
 /**
  * Fetch subscription data from the API
@@ -40,6 +42,20 @@ async function loadData() {
   }
 }
 
+async function sendFeedback(sub: Subscription, decision: 'CONFIRMED' | 'REJECTED') {
+  savingKey.value = sub.cluster_key
+  try {
+    await statsApi.subscriptionsFeedback({
+      cluster_key: sub.cluster_key,
+      decision,
+      canonical_merchant_override: null,
+    })
+    await loadData()
+  } finally {
+    savingKey.value = null
+  }
+}
+
 /** Translate cadence to Italian */
 function getCadenceLabel(cadence: Subscription['cadence']): string {
   const labels: Record<Subscription['cadence'], string> = {
@@ -53,8 +69,21 @@ function getCadenceLabel(cadence: Subscription['cadence']): string {
 }
 
 /** Get status badge variant based on active state */
-function getStatusVariant(isActive: boolean): Badge['variant'] {
+function getStatusVariant(isActive: boolean): BadgeVariants['variant'] {
   return isActive ? 'default' : 'secondary'
+}
+
+function getReviewBadge(
+  status: Subscription['review_status'],
+): { label: string; variant: BadgeVariants['variant'] } {
+  if (status === 'confirmed') return { label: 'Confermato', variant: 'default' }
+  if (status === 'needs_review') return { label: 'Da revisionare', variant: 'secondary' }
+  return { label: 'Proposto', variant: 'secondary' }
+}
+
+function formatConfidence(confidence: number | null): string {
+  if (confidence === null || Number.isNaN(confidence)) return '—'
+  return `${Math.round(confidence * 100)}%`
 }
 
 // Fetch data on initial mount
@@ -124,10 +153,13 @@ onMounted(loadData)
                 <TableHead>Cadenza</TableHead>
                 <TableHead class="w-24">Prossimo Addebito</TableHead>
                 <TableHead class="w-16">Stato</TableHead>
+                <TableHead class="w-24">AI</TableHead>
+                <TableHead class="w-40">Motivo</TableHead>
+                <TableHead class="w-28 text-right">Azioni</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              <template v-for="sub in subscriptions" :key="sub.merchant">
+              <template v-for="sub in subscriptions" :key="sub.cluster_key">
                 <TableRow>
                   <TableCell class="whitespace-nowrap font-medium">
                     {{ sub.merchant }}
@@ -158,6 +190,37 @@ onMounted(loadData)
                     <Badge :variant="getStatusVariant(sub.is_active)">
                       {{ sub.is_active ? 'Attivo' : 'Inattivo' }}
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div class="flex flex-col gap-1">
+                      <Badge :variant="getReviewBadge(sub.review_status).variant">
+                        {{ getReviewBadge(sub.review_status).label }}
+                      </Badge>
+                      <span class="text-xs text-muted-foreground">
+                        {{ formatConfidence(sub.confidence) }}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell class="text-sm text-muted-foreground">
+                    {{ sub.reason ?? '—' }}
+                  </TableCell>
+                  <TableCell class="text-right">
+                    <div class="flex justify-end gap-2">
+                      <button
+                        class="rounded-md border px-2 py-1 text-xs hover:bg-muted disabled:opacity-50"
+                        :disabled="savingKey === sub.cluster_key || sub.review_status === 'confirmed'"
+                        @click="sendFeedback(sub, 'CONFIRMED')"
+                      >
+                        Conferma
+                      </button>
+                      <button
+                        class="rounded-md border px-2 py-1 text-xs hover:bg-muted disabled:opacity-50"
+                        :disabled="savingKey === sub.cluster_key"
+                        @click="sendFeedback(sub, 'REJECTED')"
+                      >
+                        Rifiuta
+                      </button>
+                    </div>
                   </TableCell>
                 </TableRow>
               </template>

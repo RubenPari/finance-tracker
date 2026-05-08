@@ -200,6 +200,12 @@ export const statsApi = {
     api.get<CategoryComparison[]>('/stats/comparison/', { params }),
   /** GET /stats/subscriptions/ - Get detected recurring subscriptions with analytics. */
   subscriptions: () => api.get<SubscriptionsResponse>('/stats/subscriptions/'),
+  /** POST /stats/subscriptions/feedback/ - Confirm or reject a subscription cluster. */
+  subscriptionsFeedback: (data: {
+    cluster_key: string
+    decision: 'CONFIRMED' | 'REJECTED'
+    canonical_merchant_override?: string | null
+  }) => api.post('/stats/subscriptions/feedback/', data),
 }
 
 /**
