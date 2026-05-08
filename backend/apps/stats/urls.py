@@ -24,4 +24,5 @@ urlpatterns = [
     path('balance/', views.BalanceView.as_view(), name='stats-balance'),
     path('comparison/', views.ComparisonView.as_view(), name='stats-comparison'),
     path('subscriptions/', views.SubscriptionsView.as_view(), name='stats-subscriptions'),
+    path('subscriptions/feedback/', views.SubscriptionsFeedbackView.as_view(), name='stats-subscriptions-feedback'),
 ]

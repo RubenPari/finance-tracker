@@ -28,6 +28,7 @@ import hashlib
 
 from apps.transactions.models import Transaction
 from apps.stats.subscriptions_ai import classify_subscription_candidates
+from apps.stats.models import SubscriptionOverride
 
 
 def get_date_range(request):
@@ -685,6 +686,24 @@ class SubscriptionsView(APIView):
                 pat = float(i.get('pattern_score') or 0)
                 i['review_status'] = 'rejected' if (conf >= 0.8 and pat < 0.45) else 'needs_review'
 
+        # Apply explicit user overrides (confirm/reject).
+        overrides = {
+            o.cluster_key: o
+            for o in SubscriptionOverride.objects.filter(user=request.user)
+        }
+        filtered: list[dict] = []
+        for i in items:
+            ck = i.get('cluster_key')
+            o = overrides.get(ck) if ck else None
+            if o and o.decision == SubscriptionOverride.Decision.REJECTED:
+                continue
+            if o and o.decision == SubscriptionOverride.Decision.CONFIRMED:
+                i['review_status'] = 'confirmed'
+                if o.canonical_merchant_override:
+                    i['merchant'] = o.canonical_merchant_override
+            filtered.append(i)
+        items = filtered
+
         active_items = [i for i in items if i['is_active']]
         monthly_total = sum(i['monthly_equivalent'] for i in active_items)
         summary = {
@@ -696,3 +715,35 @@ class SubscriptionsView(APIView):
         }
 
         return Response({'summary': summary, 'items': items})
+
+
+class SubscriptionsFeedbackView(APIView):
+    """Persist user feedback (confirm/reject) for a subscription cluster."""
+
+    def post(self, request):
+        data = request.data or {}
+        cluster_key = data.get('cluster_key')
+        decision = data.get('decision')
+        canonical_merchant_override = data.get('canonical_merchant_override')
+
+        if not isinstance(cluster_key, str) or len(cluster_key) != 64:
+            return Response({'detail': 'cluster_key invalid'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if decision not in {SubscriptionOverride.Decision.CONFIRMED, SubscriptionOverride.Decision.REJECTED}:
+            return Response({'detail': 'decision invalid'}, status=status.HTTP_400_BAD_REQUEST)
+
+        obj, _ = SubscriptionOverride.objects.update_or_create(
+            user=request.user,
+            cluster_key=cluster_key,
+            defaults={
+                'decision': decision,
+                'canonical_merchant_override': canonical_merchant_override or None,
+            },
+        )
+
+        return Response({
+            'cluster_key': obj.cluster_key,
+            'decision': obj.decision,
+            'canonical_merchant_override': obj.canonical_merchant_override,
+            'updated_at': obj.updated_at.isoformat(),
+        })
