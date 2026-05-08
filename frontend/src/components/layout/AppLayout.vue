@@ -24,6 +24,7 @@ import {
   Lightbulb,
   LogOut,
   BarChart3,
+  Repeat,
 } from 'lucide-vue-next'
 import ModeToggle from '@/components/ModeToggle.vue'
 import {
@@ -58,6 +59,7 @@ const navItems = [
   { path: '/categories', label: 'Categorie', icon: Tags },
   { path: '/budgets', label: 'Budget', icon: PiggyBank },
   { path: '/suggestions', label: 'Suggerimenti', icon: Lightbulb },
+  { path: '/subscriptions', label: 'Abbonamenti', icon: Repeat },
 ]
 </script>
 
