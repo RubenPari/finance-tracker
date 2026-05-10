@@ -17,14 +17,18 @@ export interface User {
   last_name: string
 }
 
-/** Response payload from login and registration endpoints. */
-export interface AuthResponse {
-  /** Authenticated user profile. */
-  user: User
+/** Response payload from login endpoint. */
+export interface LoginResponse {
   /** JWT access token (short-lived). */
   access: string
   /** JWT refresh token (long-lived, used to obtain new access tokens). */
   refresh: string
+}
+
+/** Response payload from registration endpoint. */
+export interface AuthResponse extends LoginResponse {
+  /** Authenticated user profile. */
+  user: User
 }
 
 /** Financial transaction record. */
@@ -156,7 +160,7 @@ export interface ImportBatch {
   /** Celery task ID for async imports, or null for sync. */
   task_id: string | null
   /** Current processing status. */
-  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
+  status: 'PENDING' | 'PROCESSING' | 'STAGED' | 'COMPLETED' | 'FAILED'
 }
 
 /** Summary statistics for a given time period. */

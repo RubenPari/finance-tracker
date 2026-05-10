@@ -58,7 +58,12 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(email: string, password: string) {
     const { data } = await authApi.login(email, password)
     setTokens(data.access, data.refresh)
-    setUser(data.user)
+    try {
+      await fetchUser()
+    } catch {
+      logout()
+      throw new Error('Impossibile recuperare il profilo utente dopo il login.')
+    }
   }
 
   /**
