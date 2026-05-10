@@ -11,6 +11,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError
 
 from .serializers import RegisterSerializer, UserSerializer
 
@@ -84,7 +85,7 @@ class LogoutView(APIView):
             # Add token to blacklist to prevent reuse
             token.blacklist()
             return Response({'detail': 'Logout effettuato.'}, status=status.HTTP_200_OK)
-        except Exception:
+        except TokenError:
             # Catch invalid, expired, or malformed tokens
             return Response(
                 {'error': 'Token non valido.'},

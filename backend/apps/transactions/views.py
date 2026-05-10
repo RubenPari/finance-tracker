@@ -29,6 +29,7 @@ from rest_framework.generics import (
 )
 from django.shortcuts import get_object_or_404
 from django.db import transaction as db_transaction
+import logging
 
 from .models import Transaction, ImportBatch, ImportStaging
 from .serializers import (
@@ -39,6 +40,9 @@ from .serializers import (
 )
 from .filters import TransactionFilter
 from .tasks import process_import_xlsx
+
+
+logger = logging.getLogger(__name__)
 
 class TransactionPagination(PageNumberPagination):
     """Custom pagination for transaction list endpoints.
@@ -219,7 +223,7 @@ class ImportCommitView(APIView):
     final duplicate check. The staging records are then deleted.
     """
 
-    def post(self, request, batch_id):
+    def post(self, request, pk):
         """Commit all staged transactions for the given import batch.
 
         Performs the following steps atomically:
@@ -234,14 +238,14 @@ class ImportCommitView(APIView):
 
         Args:
             request: HTTP request.
-            batch_id: Primary key of the ``ImportBatch`` to commit.
+            pk: Primary key of the ``ImportBatch`` to commit.
 
         Returns:
             Response: 200 OK with the count of committed transactions on success,
                 400 Bad Request if the batch is not staged or has no staging data,
                 or 500 Internal Server Error on unexpected failures.
         """
-        import_batch = get_object_or_404(ImportBatch, id=batch_id, user=request.user)
+        import_batch = get_object_or_404(ImportBatch, id=pk, user=request.user)
 
         # Only batches in STAGED status can be committed
         if import_batch.status != 'STAGED':
@@ -303,8 +307,13 @@ class ImportCommitView(APIView):
                 {"message": f"Importazione completata. {committed_count} transazioni salvate."},
                 status=status.HTTP_200_OK,
             )
-        except Exception as e:
+        except Exception:
+            logger.exception(
+                "Errore inatteso durante il commit dell'import batch %s per utente %s",
+                import_batch.id,
+                request.user.id,
+            )
             return Response(
-                {"error": str(e)},
+                {"error": "Errore interno durante la conferma dell'import."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

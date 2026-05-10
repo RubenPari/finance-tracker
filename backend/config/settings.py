@@ -8,12 +8,14 @@ Sensitive values (SECRET_KEY, DB credentials) are read from
 environment variables with development defaults.
 """
 import os
+import logging
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # Base directory: parent of this settings file (the backend/ directory)
 # ---------------------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent.parent
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Security: secret key and debug mode
@@ -130,12 +132,24 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ---------------------------------------------------------------------------
-# CORS configuration: allow frontend development server
+# CORS configuration
 # ---------------------------------------------------------------------------
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-]
+cors_allowed_origins_env = os.environ.get('CORS_ALLOWED_ORIGINS')
+if cors_allowed_origins_env:
+    CORS_ALLOWED_ORIGINS = [
+        origin.strip()
+        for origin in cors_allowed_origins_env.split(',')
+        if origin.strip()
+    ]
+else:
+    frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:5173').strip()
+    default_origins = [
+        frontend_url,
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+    ]
+    # Keep order stable while removing duplicates and empty values.
+    CORS_ALLOWED_ORIGINS = list(dict.fromkeys(origin for origin in default_origins if origin))
 CORS_ALLOW_CREDENTIALS = True
 
 # ---------------------------------------------------------------------------
@@ -185,16 +199,28 @@ CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Europe/Rome'
 
 # ---------------------------------------------------------------------------
+# Django cache backend
+# ---------------------------------------------------------------------------
+CACHE_URL = os.environ.get('CACHE_URL', 'redis://localhost:6379/1')
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': CACHE_URL,
+    },
+}
+
+# ---------------------------------------------------------------------------
 # AI Gateway configuration for transaction suggestions
 # ---------------------------------------------------------------------------
 AI_GATEWAY_URL = os.environ.get(
     'AI_GATEWAY_URL', 'https://ai-gateway.vercel.sh/v1/chat/completions'
 )
 AI_GATEWAY_KEY = os.environ.get('AI_GATEWAY_KEY', '')
-if not AI_GATEWAY_KEY:
-    raise ValueError(
-        "AI_GATEWAY_KEY is required but not set. "
-        "Add it to your .env file to start the application."
+AI_GATEWAY_ENABLED = bool(AI_GATEWAY_KEY)
+if not AI_GATEWAY_ENABLED:
+    logger.warning(
+        "AI_GATEWAY_KEY non configurata: le funzionalita AI restano disabilitate "
+        "e verra usato il fallback statistico/rule-based."
     )
 AI_GATEWAY_MODEL = os.environ.get('AI_GATEWAY_MODEL', 'xai/grok-4.1-fast-non-reasoning')
 AI_SUGGESTIONS_TIMEOUT = int(os.environ.get('AI_SUGGESTIONS_TIMEOUT', '10'))

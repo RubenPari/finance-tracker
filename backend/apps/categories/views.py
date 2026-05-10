@@ -8,6 +8,7 @@ uncategorized transactions using an external AI gateway service.
 
 from django.db import models
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.generics import (
@@ -40,6 +41,23 @@ SYSTEM_CATEGORIES = [
     {'name': 'Cambio Valuta', 'color': '#A3E635', 'icon': 'currency'},
     {'name': 'Altro', 'color': '#6B7280', 'icon': 'more-horizontal'},
 ]
+
+
+def _parse_limit(request, default: int = 100, min_value: int = 1, max_value: int = 500) -> int:
+    """Parse and validate the `limit` query parameter."""
+    raw = request.query_params.get('limit')
+    if raw in (None, ''):
+        return default
+
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        raise ValidationError({'limit': 'Parametro non valido: deve essere un intero.'})
+
+    if value < min_value or value > max_value:
+        raise ValidationError({'limit': f'Valore non valido: consentito tra {min_value} e {max_value}.'})
+
+    return value
 
 
 class CategoryListView(ListAPIView):
@@ -174,7 +192,7 @@ class AICategorizeView(APIView):
             uncategorized transactions exist.
         """
         # Parse the limit parameter to cap the number of transactions processed
-        limit = int(request.query_params.get('limit', 100))
+        limit = _parse_limit(request)
 
         # Fetch the most recent uncategorized transactions up to the limit
         uncategorized = list(

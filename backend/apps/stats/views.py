@@ -15,6 +15,7 @@ Amounts are stored as negative for expenses and positive for income.
 """
 
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.db.models import Sum, Count, Q
@@ -29,6 +30,23 @@ import hashlib
 from apps.transactions.models import Transaction
 from apps.stats.subscriptions_ai import classify_subscription_candidates
 from apps.stats.models import SubscriptionOverride
+
+
+def _parse_int_query_param(request, name: str, default: int, min_value: int, max_value: int) -> int:
+    """Parse and validate an integer query parameter with bounds."""
+    raw = request.query_params.get(name)
+    if raw in (None, ''):
+        return default
+
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        raise ValidationError({name: 'Parametro non valido: deve essere un intero.'})
+
+    if value < min_value or value > max_value:
+        raise ValidationError({name: f'Valore non valido: consentito tra {min_value} e {max_value}.'})
+
+    return value
 
 
 def get_date_range(request):
@@ -54,10 +72,24 @@ def get_date_range(request):
     date_from_str = request.query_params.get('date_from')
     date_to_str = request.query_params.get('date_to')
 
+    allowed_periods = {'month', 'quarter', 'year'}
+    if period not in allowed_periods:
+        raise ValidationError({'period': 'Valore non valido. Usa month, quarter o year.'})
+
+    if bool(date_from_str) != bool(date_to_str):
+        raise ValidationError({'date_range': 'Fornisci sia date_from che date_to.'})
+
     if date_from_str and date_to_str:
         # Custom date range: parse and include the full end date by adding one day
-        date_from = timezone.make_aware(datetime.strptime(date_from_str, '%Y-%m-%d'))
-        date_to = timezone.make_aware(datetime.strptime(date_to_str, '%Y-%m-%d'))
+        try:
+            date_from = timezone.make_aware(datetime.strptime(date_from_str, '%Y-%m-%d'))
+            date_to = timezone.make_aware(datetime.strptime(date_to_str, '%Y-%m-%d'))
+        except ValueError:
+            raise ValidationError({'date_range': 'Formato data non valido. Usa YYYY-MM-DD.'})
+
+        if date_from > date_to:
+            raise ValidationError({'date_range': 'Intervallo non valido: date_from deve precedere date_to.'})
+
         date_to = date_to + timedelta(days=1)
         prev_months = 1
     elif period == 'year':
@@ -222,7 +254,7 @@ class MonthlyTrendView(APIView):
         Returns:
             Response: JSON array of monthly trend objects ordered chronologically.
         """
-        months = int(request.query_params.get('months', 12))
+        months = _parse_int_query_param(request, 'months', default=12, min_value=1, max_value=60)
 
         result = []
         # Start from the first day of the current month
@@ -291,10 +323,10 @@ class TopMerchantsView(APIView):
             Response: JSON array of top merchant objects, limited by the `limit` parameter.
         """
         date_from, date_to, _ = get_date_range(request)
-        limit = int(request.query_params.get('limit', 5))
+        limit = _parse_int_query_param(request, 'limit', default=5, min_value=1, max_value=50)
 
-        # Filter expense transactions within the date range, group by description,
-        # and rank by total spending (ascending, so the largest are at the end of order_by)
+        # Expenses are stored as negative values, so lower totals mean higher spending.
+        # Ordering ascending returns the largest spenders first.
         data = Transaction.objects.filter(
             user=request.user,
             amount__lt=0,
@@ -387,8 +419,12 @@ class ComparisonView(APIView):
             Response: JSON array of category comparison objects with change percentages.
         """
         date_from, date_to, prev_months = get_date_range(request)
-        # Calculate the previous period as the same duration immediately before the current period
-        prev_from = date_from - timedelta(days=prev_months * 30)
+        # Calculate the previous period using calendar-aware ranges when possible.
+        # For custom ranges, mirror the exact window length.
+        if request.query_params.get('date_from') and request.query_params.get('date_to'):
+            prev_from = date_from - (date_to - date_from)
+        else:
+            prev_from = date_from - relativedelta(months=prev_months)
         prev_to = date_from
 
         # Aggregate current period expenses by category (with color for display)
