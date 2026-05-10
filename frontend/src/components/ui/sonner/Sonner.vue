@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import { computed } from 'vue'
 import type { ToasterProps } from 'vue-sonner'
 
 import {
@@ -13,6 +14,17 @@ import { Toaster as Sonner } from 'vue-sonner'
 import { cn } from '@/lib/utils'
 
 const props = defineProps<ToasterProps>()
+
+const sonnerProps = computed(() => ({
+  ...props,
+  toastOptions: {
+    ...props.toastOptions,
+    classes: {
+      ...props.toastOptions?.classes,
+      toast: 'rounded-2xl',
+    },
+  },
+}))
 </script>
 
 <template>
@@ -24,12 +36,7 @@ const props = defineProps<ToasterProps>()
       '--normal-border': 'var(--border)',
       '--border-radius': 'var(--radius)',
     }"
-    :toast-options="{
-      classes: {
-        toast: 'rounded-2xl',
-      },
-    }"
-    v-bind="props"
+    v-bind="sonnerProps"
   >
     <template #success-icon>
       <CircleCheckIcon class="size-4" />

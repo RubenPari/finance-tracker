@@ -9,111 +9,23 @@
  * - Loading and empty states
  * - Utilizes existing API endpoint and types
  */
-import { ref, onMounted } from 'vue'
-import { statsApi } from '@/api'
-import type { Subscription, SubscriptionsResponse } from '@/types'
+import { useSubscriptions } from '@/composables/useSubscriptions'
 import { formatCurrency, formatDate, categoryBadgeStyle } from '@/utils/formatters'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import type { BadgeVariants } from '@/components/ui/badge'
-
-/** Subscription data */
-const subscriptions = ref<Subscription[]>([])
-/** Summary statistics */
-const summary = ref<SubscriptionsResponse['summary'] | null>(null)
-/** Loading state */
-const loading = ref(true)
-const savingKey = ref<string | null>(null)
-
-/**
- * Fetch subscription data from the API
- */
-async function loadData() {
-  loading.value = true
-  try {
-    const response = await statsApi.subscriptions()
-    // Show only active subscriptions (future spend).
-    subscriptions.value = response.data.items.filter((s) => s.is_active)
-    // Recompute summary from the displayed list for consistency.
-    summary.value = response.data.summary
-    recomputeSummary()
-  } catch (error) {
-  } finally {
-    loading.value = false
-  }
-}
-
-function recomputeSummary() {
-  // Keep the UI responsive after feedback by adjusting summary locally.
-  const active = subscriptions.value.filter((s) => s.is_active).length
-  const monthlyTotal = subscriptions.value
-    .filter((s) => s.is_active)
-    .reduce((acc, s) => acc + (s.monthly_equivalent || 0), 0)
-
-  summary.value = {
-    active_count: active,
-    inactive_count: 0,
-    monthly_total: Number(monthlyTotal.toFixed(2)),
-    yearly_projection: Number((monthlyTotal * 12).toFixed(2)),
-    total_paid_12m: summary.value?.total_paid_12m ?? 0,
-  }
-}
-
-async function sendFeedback(sub: Subscription, decision: 'CONFIRMED' | 'REJECTED') {
-  savingKey.value = sub.cluster_key
-  try {
-    await statsApi.subscriptionsFeedback({
-      cluster_key: sub.cluster_key,
-      decision,
-      canonical_merchant_override: null,
-    })
-    // Optimistic UI update: avoid full reload (which can be slow due to AI + clustering).
-    if (decision === 'CONFIRMED') {
-      const idx = subscriptions.value.findIndex((s) => s.cluster_key === sub.cluster_key)
-      if (idx >= 0) subscriptions.value[idx] = { ...subscriptions.value[idx], review_status: 'confirmed' }
-    } else {
-      subscriptions.value = subscriptions.value.filter((s) => s.cluster_key !== sub.cluster_key)
-    }
-    recomputeSummary()
-  } finally {
-    savingKey.value = null
-  }
-}
-
-/** Translate cadence to Italian */
-function getCadenceLabel(cadence: Subscription['cadence']): string {
-  const labels: Record<Subscription['cadence'], string> = {
-    weekly: 'Settimanale',
-    monthly: 'Mensile',
-    quarterly: 'Trimestrale',
-    yearly: 'Annuale',
-    irregular: 'Irregolare',
-  }
-  return labels[cadence]
-}
-
-/** Get status badge variant based on active state */
-function getStatusVariant(isActive: boolean): BadgeVariants['variant'] {
-  return isActive ? 'default' : 'secondary'
-}
-
-function getReviewBadge(
-  status: Subscription['review_status'],
-): { label: string; variant: BadgeVariants['variant'] } {
-  if (status === 'confirmed') return { label: 'Confermato', variant: 'default' }
-  if (status === 'needs_review') return { label: 'Da revisionare', variant: 'secondary' }
-  return { label: 'Proposto', variant: 'secondary' }
-}
-
-function formatConfidence(confidence: number | null): string {
-  if (confidence === null || Number.isNaN(confidence)) return '—'
-  return `${Math.round(confidence * 100)}%`
-}
-
-// Fetch data on initial mount
-onMounted(loadData)
+const {
+  subscriptions,
+  summary,
+  loading,
+  savingKey,
+  sendFeedback,
+  getCadenceLabel,
+  getStatusVariant,
+  getReviewBadge,
+  formatConfidence,
+} = useSubscriptions()
 </script>
 
 <template>

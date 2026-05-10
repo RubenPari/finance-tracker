@@ -1,26 +1,8 @@
 <script setup lang="ts">
-/**
- * ImportView - Handles XLSX file import for Revolut transaction data.
- *
- * Features:
- * - Drag-and-drop and click-to-select file upload (XLSX only)
- * - File validation (must be .xlsx format)
- * - Polling for async processing status (PROCESSING -> COMPLETED/FAILED)
- * - Import result summary (imported, skipped/duplicates, discarded, errors)
- * - Import history with collapsible batch details
- * - Paginated transaction list within each expanded batch
- *
- * Cleanup: stops the polling timer on component unmount to prevent memory leaks.
- */
-import { ref, onMounted, onUnmounted } from 'vue'
-import { transactionsApi } from '@/api'
-import type { ImportBatch, Transaction } from '@/types'
 import { formatDateTime, formatDate, formatCurrency } from '@/utils/formatters'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableBody,
@@ -35,219 +17,44 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { Upload, CheckCircle2, XCircle, Loader2, ChevronDown, FileSpreadsheet } from 'lucide-vue-next'
+import { useImportWorkflow } from '@/composables/useImportWorkflow'
 
-/** Reference to the hidden file input element for click-to-select uploads */
-const fileInput = ref<HTMLInputElement | null>(null)
-/** Whether a file is currently being dragged over the drop zone */
-const dragging = ref(false)
-/** Whether a file upload is in progress (API call active) */
-const uploading = ref(false)
-/** Result of the most recent import (includes status, filename, counts) */
-const result = ref<ImportBatch | null>(null)
-/** Error message from a failed upload or validation failure */
-const error = ref('')
-/** List of past import batches for the history section */
-const history = ref<ImportBatch[]>([])
-/** ID of the currently expanded batch in the history view, or null if none */
-const expandedBatch = ref<number | null>(null)
-/** Whether the collapsible batch details section is open */
-const isExpanded = ref(false)
-/** Paginated transactions for the currently expanded batch */
-const batchTransactions = ref<Transaction[]>([])
-/** Loading state for fetching transactions of an expanded batch */
-const batchTransactionLoading = ref(false)
-/** Current page within the expanded batch transaction list */
-const batchTransactionPage = ref(1)
-/** Total count of transactions in the expanded batch */
-const batchTransactionTotal = ref(0)
-/** Whether there is a next page of transactions in the expanded batch */
-const batchTransactionHasNext = ref(false)
-/** Whether there is a previous page of transactions in the expanded batch */
-const batchTransactionHasPrev = ref(false)
-
-/** Interval timer reference for polling the import processing status */
-let pollTimer: ReturnType<typeof setInterval> | null = null
-
-/**
- * Handles the dragover event on the drop zone.
- * Prevents default browser behavior (which would open the file) and sets dragging state.
- */
-function onDragOver(e: DragEvent) {
-  e.preventDefault()
-  dragging.value = true
-}
-
-/** Clears the dragging state when the cursor leaves the drop zone. */
-function onDragLeave() {
-  dragging.value = false
-}
-
-/**
- * Handles file drop on the drop zone.
- * Extracts the first dropped file and passes it to the upload function.
- */
-async function onDrop(e: DragEvent) {
-  e.preventDefault()
-  dragging.value = false
-  const file = e.dataTransfer?.files?.[0]
-  if (file) await upload(file)
-}
-
-/**
- * Handles file selection from the hidden file input.
- * Extracts the selected file, passes it to upload, then resets the input value
- * so the same file can be re-selected if needed.
- */
-async function onFileSelect(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (file) await upload(file)
-  input.value = ''
-}
-
-/**
- * Uploads a file to the import API.
- * Validates the file extension (.xlsx only), sends the file, and handles the response.
- * If the import status is 'PROCESSING', starts polling for completion.
- * On error, extracts the error message from the API response or shows a generic message.
- */
-async function upload(file: File) {
-  error.value = ''
-  result.value = null
-
-  if (!file.name.toLowerCase().endsWith('.xlsx')) {
-    error.value = 'Formato non supportato. Carica un file .xlsx.'
-    return
-  }
-
-  uploading.value = true
-  try {
-    const { data } = await transactionsApi.import(file)
-    result.value = data
-
-    // If the backend is processing asynchronously, start polling for status updates
-    if (data.status === 'PROCESSING') {
-      startPolling(data.id)
-    }
-  } catch (e: unknown) {
-    const resp = (e as { response?: { data?: { error?: string } } }).response
-    error.value = resp?.data?.error || "Errore durante l'upload del file."
-  } finally {
-    uploading.value = false
-  }
-}
-
-/**
- * Starts polling the import detail API every 1.5 seconds to track processing status.
- * Stops polling when the status becomes 'COMPLETED' or 'FAILED' and reloads the import history.
- */
-async function startPolling(batchId: number) {
-  pollTimer = setInterval(async () => {
-    try {
-      const { data } = await transactionsApi.importDetail(batchId)
-      result.value = data
-      if (data.status === 'COMPLETED' || data.status === 'FAILED') {
-        stopPolling()
-        await loadHistory()
-      }
-    } catch {
-      stopPolling()
-    }
-  }, 1500)
-}
-
-/** Clears the polling interval timer and nulls out the reference. */
-function stopPolling() {
-  if (pollTimer) {
-    clearInterval(pollTimer)
-    pollTimer = null
-  }
-}
-
-/**
- * Fetches the import history (list of past import batches) from the API.
- * Silently ignores errors so the history section simply remains empty.
- */
-async function loadHistory() {
-  try {
-    const { data } = await transactionsApi.importHistory()
-    history.value = data
-  } catch {}
-}
-
-/**
- * Toggles the expansion of a batch in the import history.
- * If already expanded, collapses it and clears the transaction list.
- * If collapsed, expands it and loads the first page of transactions for that batch.
- */
-async function toggleBatch(batch: ImportBatch) {
-  if (expandedBatch.value === batch.id) {
-    expandedBatch.value = null
-    isExpanded.value = false
-    batchTransactions.value = []
-    return
-  }
-
-  expandedBatch.value = batch.id
-  isExpanded.value = true
-  batchTransactionPage.value = 1
-  await loadBatchTransactions(batch.id, 1)
-}
-
-/**
- * Fetches a paginated list of transactions for a specific import batch.
- * Updates the reactive state with the results, total count, and pagination metadata.
- */
-async function loadBatchTransactions(batchId: number, page: number) {
-  batchTransactionLoading.value = true
-  try {
-    const { data } = await transactionsApi.batchTransactions(batchId, { page })
-    batchTransactions.value = data.results
-    batchTransactionTotal.value = data.count
-    batchTransactionHasNext.value = !!data.next
-    batchTransactionHasPrev.value = !!data.previous
-    batchTransactionPage.value = page
-  } catch {
-    batchTransactions.value = []
-  } finally {
-    batchTransactionLoading.value = false
-  }
-}
-
-/**
- * Maps an import batch status string to a Badge variant for visual display.
- * PENDING -> secondary, PROCESSING/COMPLETED -> default, FAILED -> destructive.
- */
-function getStatusBadgeVariant(status: string): 'secondary' | 'default' | 'destructive' {
-  const map: Record<string, 'secondary' | 'default' | 'destructive'> = {
-    PENDING: 'secondary',
-    PROCESSING: 'default',
-    COMPLETED: 'default',
-    FAILED: 'destructive',
-  }
-  return map[status] || 'secondary'
-}
-
-/** Maps an import batch status string to its Italian display label. */
-function getStatusLabel(status: string): string {
-  const map: Record<string, string> = {
-    PENDING: 'In attesa',
-    PROCESSING: 'In elaborazione',
-    COMPLETED: 'Completato',
-    FAILED: 'Fallito',
-  }
-  return map[status] || status
-}
-
-// Load import history on component mount
-onMounted(loadHistory)
-// Clean up the polling interval when the component is unmounted to prevent memory leaks
-onUnmounted(stopPolling)
+const {
+  fileInput,
+  dragging,
+  uploading,
+  committing,
+  result,
+  error,
+  history,
+  isExpanded,
+  batchTransactions,
+  batchTransactionLoading,
+  batchTransactionPage,
+  batchTransactionTotal,
+  batchTransactionHasNext,
+  batchTransactionHasPrev,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onFileSelect,
+  toggleBatch,
+  loadBatchTransactions,
+  commitImport,
+  getStatusBadgeVariant,
+  getStatusLabel,
+} = useImportWorkflow()
 </script>
 
 <template>
   <div>
     <h1 class="mb-6 text-2xl font-bold tracking-tight">Importa XLSX</h1>
+    <div
+      v-if="error"
+      class="mb-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+    >
+      {{ error }}
+    </div>
 
     <template v-if="!uploading && !result">
       <Card>
@@ -265,17 +72,11 @@ onUnmounted(stopPolling)
             <p class="mt-1 text-sm text-muted-foreground">oppure clicca per selezionare</p>
             <input ref="fileInput" type="file" accept=".xlsx" class="hidden" @change="onFileSelect" />
           </div>
-          <div
-            v-if="error"
-            class="mt-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive"
-          >
-            {{ error }}
-          </div>
         </CardContent>
       </Card>
     </template>
 
-    <template v-if="uploading && result">
+    <template v-if="result && result.status === 'PROCESSING'">
       <Card>
         <CardContent class="flex flex-col items-center py-12">
           <Loader2 class="mb-4 size-10 animate-spin text-primary" />
@@ -285,12 +86,21 @@ onUnmounted(stopPolling)
       </Card>
     </template>
 
-    <template v-if="result && result.status === 'COMPLETED'">
+    <template v-if="result && (result.status === 'COMPLETED' || result.status === 'STAGED')">
       <Card>
         <CardContent class="pt-6">
           <div class="mb-6 text-center">
-            <CheckCircle2 class="mx-auto size-10 text-income" />
-            <h2 class="mt-2 text-xl font-semibold">Import completato!</h2>
+            <component
+              :is="result.status === 'STAGED' ? FileSpreadsheet : CheckCircle2"
+              class="mx-auto size-10"
+              :class="result.status === 'STAGED' ? 'text-warning' : 'text-income'"
+            />
+            <h2 class="mt-2 text-xl font-semibold">
+              {{ result.status === 'STAGED' ? 'Import pronto per la conferma' : 'Import completato!' }}
+            </h2>
+            <p v-if="result.status === 'STAGED'" class="mt-1 text-sm text-muted-foreground">
+              Le transazioni sono in staging. Conferma per salvarle definitivamente.
+            </p>
           </div>
 
           <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -323,8 +133,16 @@ onUnmounted(stopPolling)
           </div>
 
           <div class="mt-6 flex justify-center gap-3">
+            <Button
+              v-if="result.status === 'STAGED'"
+              :disabled="committing"
+              @click="commitImport(result.id)"
+            >
+              <Loader2 v-if="committing" class="mr-2 size-4 animate-spin" />
+              Conferma importazione
+            </Button>
             <RouterLink to="/transactions">
-              <Button>Vedi transazioni</Button>
+              <Button :variant="result.status === 'STAGED' ? 'outline' : 'default'">Vedi transazioni</Button>
             </RouterLink>
             <Button variant="outline" @click="result = null">Importa un altro file</Button>
           </div>

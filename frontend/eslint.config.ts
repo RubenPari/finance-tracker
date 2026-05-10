@@ -10,9 +10,9 @@
  * - Prettier integration (disables ESLint rules that conflict with formatting)
  *
  * Applies different rule sets based on file type:
- * - `**/*.{vue,ts,mts,tsx}` -> Vue + TypeScript rules
- * - `e2e/**/*.{test,spec}.{js,ts,jsx,tsx}` -> Playwright rules
- * - `src/**/__tests__/*` -> Vitest rules
+ * - Vue + TypeScript source files
+ * - Playwright E2E test files
+ * - Vitest unit test files
  */
 import { globalIgnores } from 'eslint/config'
 import { defineConfigWithVueTs, vueTsConfigs } from '@vue/eslint-config-typescript'
